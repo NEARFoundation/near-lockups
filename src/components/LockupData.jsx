@@ -2,11 +2,18 @@ import {useTheme} from "@material-ui/core/styles";
 import useMediaQuery from "@material-ui/core/useMediaQuery";
 import React, {useEffect, useState} from "react";
 import {Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from "@material-ui/core";
-import {accountToLockup, epochToHumanReadable, timestampToReadable, viewLookup} from "../utils/funcs";
-import * as nearApi from "near-api-js";
+import {
+  accountToLockup,
+  epochToHumanReadable,
+  timestampToReadable,
+  viewLookupOld,
+  viewLookupNew,
+  yoktoToNear,
+  convertDuration
+} from "../utils/funcs";
 import PropTypes from "prop-types";
 import getConfig from "../config";
-import {ValidatorForm} from "react-material-ui-form-validator";
+import Decimal from "decimal.js";
 
 const nearConfig = getConfig(process.env.NODE_ENV || 'development')
 
@@ -22,20 +29,25 @@ export default function LockupData(props) {
   const {lockup, onClose} = props;
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(null);
+  const [error, setError] = useState(false);
 
 
   useEffect(() => {
-    viewLookup(lockup).then((r) => {
+    viewLookupNew(lockup).then((r) => {
       setView(r);
       setOpen(true);
     }).catch((e) => {
       console.log(e);
+      setOpen(true);
+      setError(true)
     })
   }, [lockup]);
 
 
+  console.log(view);
+
   return (
-    <>
+    <div>
       {open && view ?
         <Dialog
           onClose={onClose}
@@ -44,27 +56,25 @@ export default function LockupData(props) {
           aria-labelledby="lockup-data"
         >
           <DialogTitle style={{wordBreak: "break-word"}} id="lockup-data">
-            {view.owner}
+            {view.owner} - Ⓝ{view.ownerAccountBalance}
           </DialogTitle>
           <DialogContent>
             <DialogContentText className="black-text">
               <div
                 style={{wordBreak: "break-word"}}>lockup: <b>{accountToLockup(nearConfig.lockupAccount, view.owner)}</b>
               </div>
-              <div>initial lockup amount: <b>Ⓝ {view.ititilalLockupAmount}</b></div>
-              <div>current amount: <b>Ⓝ {view.lockupAmount}</b></div>
-              <div>lockup duration (cliff): <b>{view.lockupDurationReadable}</b></div>
-              <div>release duration: <b>{view.releaseDuration}</b></div>
-              <div>release
-                start: <b>{addDays(new Date(view.lockupStart),view.lockupDuration).toDateString()}</b>
-              </div>
-              <div>time left: <b>{view.timeLeft}</b></div>
-              <div>unlocked amount: <b>Ⓝ {view.unlockedAmount}</b></div>
+              <div>lockup amount: <b>Ⓝ {yoktoToNear(view.lockupAmount)}</b></div>
+              <div>release duration: <b>{timestampToReadable(new Decimal(view.releaseDuration).mul(1000000000 * 60 * 60 * 24).toString())}</b></div>
+              <div>release start: <b>{view.lockupReleaseStartDate.toDateString()}</b></div>
+              <div>liquid amount: <b>Ⓝ {view.liquidAmount}</b></div>
+              <div>total amount: <b>Ⓝ {view.totalAmount}</b></div>
               <div>
                 vesting schedule: {view.vestingInformation ?
                 <>
                   <ul>
-                    <li style={{wordBreak: "break-word"}}>{view.vestingInformation}</li>
+                    <li style={{wordBreak: "break-word"}}>Vesting Start: {convertDuration(view.vestingInformation.vestingStart).toDateString()}</li>
+                    <li style={{wordBreak: "break-word"}}>Vesting Cliff: {convertDuration(view.vestingInformation.vestingCliff).toDateString()}</li>
+                    <li style={{wordBreak: "break-word"}}>Vesting End: {convertDuration(view.vestingInformation.vestingEnd).toDateString()}</li>
                   </ul>
                 </>
                 : "no"
@@ -79,8 +89,33 @@ export default function LockupData(props) {
             </Button>
           </DialogActions>
         </Dialog>
-        : null}
-    </>
+        : null
+      }
+
+      {open && error ?
+        <Dialog
+          onClose={onClose}
+          fullScreen={fullScreen}
+          open={open}
+          aria-labelledby="lockup-data"
+        >
+          <DialogTitle style={{wordBreak: "break-word"}} id="lockup-data">
+            <span style={{color: 'red'}}>Error</span>
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText className="black-text">
+              No lockup for account <b>{lockup}</b> found, or error occurred!
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={onClose} autoFocus>
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+        : null
+      }
+    </div>
   )
 }
 

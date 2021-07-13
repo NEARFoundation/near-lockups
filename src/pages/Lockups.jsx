@@ -26,7 +26,7 @@ import {
   Divider,
   Link,
   FormControlLabel,
-  Switch,
+  Switch, Collapse, IconButton,
 } from "@material-ui/core";
 import {
   MuiPickersUtilsProvider,
@@ -50,9 +50,15 @@ import {
   numberFormatted,
   dateToNs,
   truncate,
+  viewLookup, viewLookupOld, viewLookupNew
 } from '../utils/funcs'
 import {Decimal} from 'decimal.js';
 import {useGlobalState, useGlobalMutation} from '../utils/container'
+import {Alert, AlertTitle} from "@material-ui/lab";
+import CloseIcon from '@material-ui/icons/Close';
+import ReactJson from 'react-json-view'
+import useRouter from "../utils/use-router";
+import queryString from "query-string";
 
 
 const lockupGas = "110000000000000";
@@ -103,18 +109,6 @@ const ViewLockups = () => {
   const handleLockupClick = (value) => {
     setLockup(value);
     setShowLockupData(true);
-    /*
-    const l = accountToLockup(nearConfig.lockupAccount, value)
-    console.log(l)
-    viewLookup(l).then((r) => {
-        setLockup(r);
-        setShowLockupData(true)
-      }
-    ).catch((e) => {
-      console.log(e)
-    });
-
-     */
   }
 
   const onClose = () => {
@@ -204,38 +198,41 @@ const ViewLockups = () => {
 const CallbackDialog = () => {
   const stateCtx = useGlobalState();
   const mutationCtx = useGlobalMutation();
+  const router = useRouter();
   const [open, setOpen] = useState(true);
   const [lockup, setLockup] = useState(null);
 
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
-  /*
-    useEffect(() => {
-      accountExists(stateCtx.config.sentTx.lockup).then((a) => {
-        setLockup(false);
-        if (a) {
-          viewLookup(stateCtx.config.sentTx.lockup).then((r) => {
-            setLockup(r);
-          }).catch((e) => {
-            console.log(e)
-          })
-        }
-      }).catch((e2) => {
-        console.log(e2)
-      })
-      return () => {
-      }
-    }, []);
 
-    console.log(lockup);
-  */
+  useEffect(() => {
+    accountExists(stateCtx.config.sentTx.lockup).then((a) => {
+      setLockup(false);
+      if (a) {
+        accountExists(stateCtx.config.sentTx.lockup).then((r) => {
+          setLockup(r);
+        }).catch((e) => {
+          console.log(e)
+        })
+      }
+    }).catch((e2) => {
+      console.log(e2)
+    })
+    return () => {
+    }
+  }, []);
+
+
+  const uriString = queryString.parse(router.location.search);
+
 
   const handleCloseSuccess = () => {
     mutationCtx.updateConfig({
       createdLockups: [...stateCtx.config.createdLockups, {owner: stateCtx.config.sentTx.owner, timestamp: new Date()}],
       sentTx: null,
     })
+    router.history.push('/');
     setOpen(false);
   };
 
@@ -243,6 +240,7 @@ const CallbackDialog = () => {
     mutationCtx.updateConfig({
       sentTx: null,
     })
+    router.history.push('/');
     setOpen(false);
   };
 
@@ -255,7 +253,8 @@ const CallbackDialog = () => {
       aria-labelledby="sign-result"
     >
       <DialogTitle style={!lockup ? {color: 'red'} : {color: "green"}} id="sign-result">
-        {!lockup ? "Error!" : "Success"}
+        {!lockup ? "Error - " : "Success"}
+        {uriString && uriString["errorCode"] ? uriString["errorCode"] : null}
       </DialogTitle>
       <DialogContent>
         <DialogContentText>
@@ -264,12 +263,21 @@ const CallbackDialog = () => {
               <b>{stateCtx.config.sentTx.lockup}</b> with owner <a target="_blank"
                                                                    href={nearConfig.walletUrl + "/profile/" + stateCtx.config.sentTx.owner}>{stateCtx.config.sentTx.owner}</a> has
               been created.
+              <Divider style={{marginTop: 10, marginBottom: 10}}/>
+              {uriString && uriString["transactionHashes"] ?
+                <div>
+                  View <a target="_blank" rel="nofollow"
+                          href={nearConfig.explorerUrl + "/transactions/" + uriString["transactionHashes"]}>transaction</a>
+                </div>
+                : null}
             </>
             :
             <>
               <b>{stateCtx.config.sentTx.lockup}</b> with owner <a target="_blank"
                                                                    href={nearConfig.walletUrl + "/profile/" + stateCtx.config.sentTx.owner}>{stateCtx.config.sentTx.owner}</a> has
               {" "}<b><span style={{color: 'red'}}>not</span></b> been created, please try again.
+              <Divider style={{marginTop: 10, marginBottom: 10}}/>
+              {uriString && uriString["errorCode"] && uriString["errorMessage"] ? uriString["errorMessage"].replace(/%20/g, " ") : null}
             </>
           }
         </DialogContentText>
@@ -328,22 +336,30 @@ const Lockups = () => {
         margin: theme.spacing(1),
         width: '100%',
       },
+      alertRoot: {
+        width: '100%',
+        '& > * + *': {
+          marginTop: theme.spacing(2),
+        },
+        marginLeft: 8,
+        marginTop: 10,
+        marginBottom: 10,
+      },
     }));
     const classes = useStyles();
 
     const stateCtx = useGlobalState();
     const mutationCtx = useGlobalMutation();
+    const router = useRouter();
     const [showSpinner, setShowSpinner] = useState(false);
     const [vestingStartTimestampDate, setVestingStartTimestampDate] = useState(null);
     const [vestingCliffTimestampDate, setVestingCliffTimestampDate] = useState(null);
     const [vestingEndTimestampDate, setVestingEndTimestampDate] = useState(null);
-    const [lockupTimestampDate, setLockupTimestampDate] = useState(null);
-    const [cliffStartDate, setCliffStartDate] = useState(null);
     const [vestingSchedule, setVestingSchedule] = useState(0);
     const [hideVesting, setHideVesting] = useState(true);
-    const [disableCliffTime, setDisableCliffTime] = useState(true);
+    const [lockupStartDate, setLockupStartDate] = useState(null);
     const [showModal, setShowModal] = useState(false);
-    const [checkedContractData, setCheckedContractData] = React.useState(true);
+    const [checkedContractData, setCheckedContractData] = useState(false);
 
     const handleShowContractData = () => {
       setCheckedContractData((prev) => !prev);
@@ -356,7 +372,6 @@ const Lockups = () => {
       amount: '',
       lockupDuration: "0",
       releaseDuration: null,
-      cliffMonths: 0,
     });
 
 
@@ -406,14 +421,14 @@ const Lockups = () => {
       try {
         setShowSpinner(true);
         const amount = nearApi.utils.format.parseNearAmount(state.amount);
-        /* convert months to nanoseconds*/
-        //const lockup_duration = new Decimal(state.lockupDuration).mul('2.628e+15');
-        const release_duration = state.releaseDuration ? new Decimal(state.releaseDuration).mul('2.628e+15') : null;
+        const releaseDuration = state.releaseDuration !== null ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
+        const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
 
         await window.contract.create({
             owner_account_id: state.ownerAccountId,
             lockup_duration: "0",
-            lockup_timestamp: lockupTimestampDate ? dateToNs(lockupTimestampDate) : null,
+            lockup_timestamp: lockupTimestamp,
+            release_duration: releaseDuration,
             vesting_schedule: hideVesting ? null : {
               VestingSchedule: {
                 start_timestamp: vestingStartTimestampDate ? dateToNs(vestingStartTimestampDate) : null,
@@ -421,11 +436,9 @@ const Lockups = () => {
                 end_timestamp: vestingEndTimestampDate ? dateToNs(vestingEndTimestampDate) : null,
               }
             },
-            release_duration: release_duration,
           },
-          new Decimal(lockupGas).toString(), amount.toString(),
+          new Decimal(lockupGas).toString(), amount,
         )
-        console.log(state.ownerAccountId, duration, amount.toString())
       } catch (e) {
         console.log(e);
         //setShowError(e);
@@ -433,6 +446,36 @@ const Lockups = () => {
         setShowSpinner(false);
       }
 
+    }
+
+
+    const dryRun = () => {
+      const amount = nearApi.utils.format.parseNearAmount(state.amount);
+      const releaseDuration = state.releaseDuration ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
+      const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
+
+
+      const jsonData = {
+        args:
+          {
+            owner_account_id: state.ownerAccountId,
+            lockup_duration: "0",
+            lockup_timestamp: lockupTimestamp,
+            release_duration: releaseDuration,
+            vesting_schedule: hideVesting ? null : {
+              VestingSchedule: {
+                start_timestamp: vestingStartTimestampDate ? dateToNs(vestingStartTimestampDate) : null,
+                cliff_timestamp: vestingCliffTimestampDate ? dateToNs(vestingCliffTimestampDate) : null,
+                end_timestamp: vestingEndTimestampDate ? dateToNs(vestingEndTimestampDate) : null,
+              }
+            }
+          },
+        gas: new Decimal(lockupGas).toString(),
+        deposit: amount
+      }
+
+
+      return jsonData;
     }
 
     const checkLockup = (event) => {
@@ -443,63 +486,33 @@ const Lockups = () => {
 
     const handleChange = (event) => {
       if (event.target.name === "ownerAccountId") {
-        console.log(event);
         event.preventDefault()
         setState((prevState) => ({...prevState, ownerAccountId: event.target.value.toLowerCase()}))
         if (event.target.value.length > 4) {
           const lockup = accountToLockup(nearConfig.lockupAccount, event.target.value.toLowerCase())
           setState((prevState) => ({...prevState, lockupAccountId: lockup}))
         }
-      }
-      if (event.target.name === "cliffMonths") {
-        setState((prevState) => ({...prevState, cliffMonths: event.target.value}))
+        if (event.target.value === "") {
+          setState((prevState) => ({...prevState, lockupAccountId: ""}))
 
-        if (cliffStartDate !== null) {
-          const o = new Date(cliffStartDate.toString());
-          let d = new Date(o.setMonth(o.getMonth() + event.target.value));
-          setLockupTimestampDate(d.toLocaleDateString().split(",")[0]);
-          console.log(d)
         }
+      }
 
-
-      }
-      if (event.target.name === "amount") {
-        setState((prevState) => ({...prevState, amount: event.target.value}))
-      }
-      if (event.target.name === "lockupDuration") {
-        setState((prevState) => ({...prevState, lockupDuration: event.target.value}))
-      }
       if (event.target.name === "releaseDuration") {
         setState((prevState) => ({...prevState, releaseDuration: event.target.value}))
       }
-      if (event.target.name === "hashSalt") {
-        setState((prevState) => ({...prevState, hashSalt: event.target.value}))
+
+      if (event.target.name === "amount") {
+        setState((prevState) => ({...prevState, amount: event.target.value}))
       }
+
     }
 
-    const handleCliffStartChange = (value) => {
-      setState((prevState) => ({...prevState, cliffMonths: 0}))
-      if (value === null) {
-        setDisableCliffTime(true);
-        setLockupTimestampDate(null);
-
-      } else {
-        setDisableCliffTime(false);
-        setLockupTimestampDate(value.toLocaleDateString().split(",")[0]);
-
-      }
-      setCliffStartDate(value);
-    }
 
     const handleVestingSelectChange = (event) => {
-      if (event.target.value === 0) {
-        setHideVesting(true);
-      } else {
-        setHideVesting(false);
-      }
+      setHideVesting(event.target.value === 0);
       setVestingSchedule(event.target.value);
     };
-
 
     const [lockup, setLockup] = useState(null);
     const [showLockupData, setShowLockupData] = useState(false);
@@ -516,6 +529,26 @@ const Lockups = () => {
       }
     };
 
+    const [openAlert1, setOpenAlert1] = useState(true);
+    const [accountValidator, setAccountValidator] = useState(false);
+    const [lockupValidator, setLockupValidator] = useState(false);
+    const [amountValidator, setAmountValidator] = useState(false);
+
+
+    const ownerAccountValidatorListener = (result) => {
+      setAccountValidator(result)
+      setCheckedContractData(!checkedContractData ? false : result);
+    }
+
+    const lockupValidatorListener = (result) => {
+      setLockupValidator(result)
+      setCheckedContractData(!checkedContractData ? false : result);
+    }
+
+    const amountValidatorListener = (result) => {
+      setAmountValidator(result)
+      setCheckedContractData(!checkedContractData ? false : result);
+    }
 
     return (
       <div className={classes.root}>
@@ -536,7 +569,7 @@ const Lockups = () => {
                   >
                     <TextValidator
                       className={classes.card}
-                      id="outlined-basic"
+                      id="ownerAccountId"
                       label="Enter Owner Account *"
                       variant="outlined"
                       name="ownerAccountId"
@@ -544,6 +577,7 @@ const Lockups = () => {
                       onBlur={checkLockup}
                       value={state.ownerAccountId}
                       validators={['required', 'isValidAccount']}
+                      validatorListener={ownerAccountValidatorListener}
                       errorMessages={['this field is required', 'account does not exists']}
                     />
                     <TextValidator
@@ -556,12 +590,13 @@ const Lockups = () => {
                       variant="outlined"
                       name="lockupAccountId"
                       validators={['required', 'isLockupAccountExist']}
+                      validatorListener={lockupValidatorListener}
                       errorMessages={['this field is required', 'lockup account already exists']}
                     />
                     <TextValidator
                       className={classes.card}
                       id="amountId"
-                      label="Amount in NEAR (min 35) *"
+                      label="Amount in NEAR (min 3.5) *"
                       value={state.amount}
                       InputProps={{
                         startAdornment: <InputAdornment position="start">Ⓝ</InputAdornment>,
@@ -570,23 +605,44 @@ const Lockups = () => {
                       variant="outlined"
                       onChange={handleChange}
                       name="amount"
-                      validators={['required']}
-                      errorMessages={['this field is required']}
+                      validators={['required', 'minFloat:3.5', 'minStringLength:1']}
+                      validatorListener={amountValidatorListener}
+                      errorMessages={['this field is required', 'minimum NEAR 3.5', 'please enter the amount in NEAR']}
                     />
                     <Grid container spacing={3}>
-                      {/*
                       <Grid item xs={12} md={12}>
-                        <TextValidator
-                          className={classes.card}
-                          id="lockupDurationId"
-                          label="Lockup Duration in Months *"
-                          variant="outlined"
-                          name="lockupDuration"
-                          onChange={handleChange}
-                          value={state.lockupDuration}
-                        />
+                        <div className={classes.alertRoot}>
+                          <Collapse in={openAlert1}>
+                            <Alert
+                              severity="success"
+                              color="info"
+                              action={
+                                <IconButton
+                                  aria-label="close"
+                                  color="inherit"
+                                  size="small"
+                                  onClick={() => {
+                                    setOpenAlert1(false);
+                                  }}
+                                >
+                                  <CloseIcon fontSize="inherit"/>
+                                </IconButton>
+                              }
+                            >
+                              <AlertTitle>Lockup Schedule</AlertTitle>
+                              <li><b>Lockup Start Date</b> or lockup timestamp - the moment when tokens start linearly
+                                unlocking.
+                              </li>
+                              <li><b>Release Duration</b> - The length of the unlocking schedule during which tokens are
+                                linearly unlocked.
+                              </li>
+                              Please view a detailed specification <a
+                              href="https://github.com/near/core-contracts/tree/master/lockup" target="_blank"
+                              rel="nofollow">here</a>
+                            </Alert>
+                          </Collapse>
+                        </div>
                       </Grid>
-                      */}
                       <Grid item xs={12} md={6}>
                         <MuiPickersUtilsProvider utils={DateFnsUtils}>
                           <KeyboardDatePicker
@@ -594,34 +650,32 @@ const Lockups = () => {
                             variant="inline"
                             inputVariant="outlined"
                             autoOk
-                            id="cliffStartDateId"
-                            label="Cliff Start Date"
+                            name="lockupStartDate"
+                            id="lockupStartDateId"
+                            label="Lockup Start Date"
                             format="MMM dd yyyy"
-                            value={cliffStartDate}
+                            value={lockupStartDate}
                             InputAdornmentProps={{position: "start"}}
-                            onChange={handleCliffStartChange}
+                            onChange={setLockupStartDate}
                           />
                         </MuiPickersUtilsProvider>
                       </Grid>
                       <Grid item xs={12} md={6}>
                         <SelectValidator
-                          disabled={disableCliffTime}
                           variant="outlined"
-                          onChange={handleChange}
                           className={classes.card}
-                          id="cliffMonthsId"
-                          name="cliffMonths"
-                          label="Cliff time *"
-                          value={state.cliffMonths}
+                          id="releaseDurationId"
+                          name="releaseDuration"
+                          label="Release Duration"
+                          value={state.releaseDuration}
+                          onChange={handleChange}
                           SelectProps={{
                             native: false
                           }}
-                          validators={["required"]}
-                          errorMessages={["required"]}
                         >
-                          <MenuItem value={0}>
-                            <em>None</em>
-                          </MenuItem>
+                          <MenuItem value={null}><em>None</em></MenuItem>
+                          <MenuItem value={3}>3 months</MenuItem>
+                          <MenuItem value={6}>6 months</MenuItem>
                           <MenuItem value={12}>1 Year (12 months)</MenuItem>
                           <MenuItem value={24}>2 Years (24 months)</MenuItem>
                           <MenuItem value={36}>3 Years (36 months)</MenuItem>
@@ -629,19 +683,33 @@ const Lockups = () => {
                         </SelectValidator>
                       </Grid>
 
-                      <Grid item xs={12} md={12}>
-                        <TextValidator
-                          className={classes.card}
-                          id="releaseDurationId"
-                          label="Release Duration in Months"
-                          variant="outlined"
-                          name="releaseDuration"
-                          onChange={handleChange}
-                          value={state.releaseDuration}
-                        />
-                      </Grid>
                     </Grid>
                     <Grid item xs={12} md={12}>
+                      <div className={classes.alertRoot}>
+                        <Collapse in={openAlert1}>
+                          <Alert
+                            severity="success"
+                            color="info"
+                            action={
+                              <IconButton
+                                aria-label="close"
+                                color="inherit"
+                                size="small"
+                                onClick={() => {
+                                  setOpenAlert1(false);
+                                }}
+                              >
+                                <CloseIcon fontSize="inherit"/>
+                              </IconButton>
+                            }
+                          >
+                            <AlertTitle>Vesting Schedule</AlertTitle>
+                            The contract could have both lockup and vesting schedules. The current amount of non-liquid
+                            tokens are calculated as the maximum between lockup and vesting logic. If at least one
+                            mechanism said the tokens are locked, then they are still locked.
+                          </Alert>
+                        </Collapse>
+                      </div>
                       <FormControl variant="outlined" className={classes.formControl}>
                         <InputLabel id="vestingScheduleLabel">Vesting Schedule</InputLabel>
                         <Select
@@ -671,7 +739,7 @@ const Lockups = () => {
                               format="MMM dd yyyy"
                               value={vestingStartTimestampDate}
                               InputAdornmentProps={{position: "start"}}
-                              onChange={setVestingStartTimestampDate()}
+                              onChange={setVestingStartTimestampDate}
                             />
                           </MuiPickersUtilsProvider>
                         </Grid>
@@ -705,7 +773,7 @@ const Lockups = () => {
                               format="MMM dd yyyy"
                               value={vestingEndTimestampDate}
                               InputAdornmentProps={{position: "start"}}
-                              onChange={vestingEndTimestampDate}
+                              onChange={setVestingEndTimestampDate}
                             />
                           </MuiPickersUtilsProvider>
                         </Grid>
@@ -715,26 +783,18 @@ const Lockups = () => {
                     <Grid container justify="flex-start" spacing={1} style={{marginTop: 20, marginLeft: 6}}>
                       <Grid item xs={12} md={12}>
                         <FormControlLabel
+                          disabled={!accountValidator || !amountValidator || !lockupValidator}
                           control={<Switch checked={checkedContractData} onChange={handleShowContractData}/>}
                           label="Show Raw Contract Data"
                         />
                       </Grid>
-                      <Grid item xs={12} md={3}>
-                        <TextField id="outlined-basic"
-                                   variant="outlined"
-                                   disabled
-                                   value={lockupTimestampDate}
-                                   helperText="Lockup Timestamp"
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={4}>
-                        <TextField id="outlined-basic"
-                                   variant="outlined"
-                                   disabled
-                                   helperText="Release Duration (from Lockup cliff)"
-                                   value={state.releaseDuration}
-                        />
-                      </Grid>
+                      {checkedContractData ?
+                        <Grid xs={12} item>
+                          <ReactJson collapsed={false} displayDataTypes={false} displayArrayKey={false} name={false}
+                                     theme={stateCtx.config.darkMode === "light" ? "bright:inverted" : "tomorrow"}
+                                     src={dryRun()}/>
+                        </Grid>
+                        : null}
                     </Grid>
                     <Grid container justify="flex-end" spacing={2} style={{marginTop: 20}}>
                       <Button

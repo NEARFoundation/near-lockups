@@ -1,4 +1,4 @@
-const CONTRACT_NAME = process.env.CONTRACT_NAME || 'lockup.nearnet'
+const CONTRACT_NAME = process.env.CONTRACT_NAME || 'lockup.devnet'
 
 function getConfig(env) {
   switch (env) {
@@ -24,7 +24,7 @@ function getConfig(env) {
         walletUrl: 'https://wallet.testnet.near.org',
         helperUrl: 'https://helper.testnet.near.org',
         explorerUrl: 'https://explorer.testnet.near.org',
-        lockupAccount: 'lockup.nearnet',
+        lockupAccount: 'lockup.devnet',
         masterAccount: 'testnet',
       }
     case 'betanet':
@@ -35,8 +35,8 @@ function getConfig(env) {
         walletUrl: 'https://wallet.betanet.near.org',
         helperUrl: 'https://helper.betanet.near.org',
         explorerUrl: 'https://explorer.betanet.near.org',
-        lockupAccount: 'lockup.nearnet',
-        masterAccount: 'nearnet',
+        lockupAccount: 'lockup.devnet',
+        masterAccount: 'testnet',
       }
     case 'local':
       return {
@@ -45,8 +45,8 @@ function getConfig(env) {
         keyPath: `${process.env.HOME}/.near/validator_key.json`,
         walletUrl: 'http://localhost:4000/wallet',
         contractName: CONTRACT_NAME,
-        lockupAccount: 'lockup.nearnet',
-        masterAccount: 'nearnet',
+        lockupAccount: 'lockup.devnet',
+        masterAccount: 'testnet',
       }
     case 'test':
     case 'ci':
@@ -54,8 +54,8 @@ function getConfig(env) {
         networkId: 'shared-test',
         nodeUrl: 'https://rpc.ci-testnet.near.org',
         contractName: CONTRACT_NAME,
-        masterAccount: 'test.near',
-        lockupAccount: 'lockup.nearnet',
+        masterAccount: 'testnet',
+        lockupAccount: 'lockup.devnet',
       }
     case 'ci-betanet':
       return {
@@ -63,7 +63,7 @@ function getConfig(env) {
         nodeUrl: 'https://rpc.ci-betanet.near.org',
         contractName: CONTRACT_NAME,
         masterAccount: 'test.near',
-        lockupAccount: 'lockup.nearnet',
+        lockupAccount: 'lockup.devnet',
 
       }
     default:
