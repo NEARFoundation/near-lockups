@@ -4,7 +4,7 @@ import {BrowserRouterHook} from './utils/use-router';
 import NotFound from "./pages/NotFound";
 import Lockups from "./pages/Lockups";
 import useMediaQuery from '@material-ui/core/useMediaQuery';
-import {createMuiTheme, ThemeProvider} from '@material-ui/core/styles';
+import {createTheme, ThemeProvider} from '@material-ui/core/styles';
 import CssBaseline from '@material-ui/core/CssBaseline';
 import {useGlobalState, useGlobalMutation} from './utils/container'
 
@@ -15,7 +15,7 @@ const App = () => {
 
   const theme = React.useMemo(
     () =>
-      createMuiTheme({
+      createTheme({
         palette: {
           type: stateCtx.config.darkMode,
         },

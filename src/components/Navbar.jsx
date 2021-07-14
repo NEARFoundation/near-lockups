@@ -11,7 +11,7 @@ import {
   Chip,
   InputBase,
 } from "@material-ui/core";
-import {fade, makeStyles} from '@material-ui/core/styles';
+import {alpha, makeStyles} from '@material-ui/core/styles';
 import MenuIcon from "@material-ui/icons/Menu";
 import DoneIcon from '@material-ui/icons/Done';
 import SearchIcon from '@material-ui/icons/Search';
@@ -20,8 +20,7 @@ import {useGlobalState, useGlobalMutation} from '../utils/container'
 import {login, logout} from '../utils'
 import getConfig from "../config";
 import * as nearApi from "near-api-js";
-import {yoktoNear, truncate} from '../utils/funcs'
-import {Decimal} from 'decimal.js';
+import {truncate} from '../utils/funcs'
 
 
 const useStyles = makeStyles((theme) => ({
@@ -64,9 +63,9 @@ const useStyles = makeStyles((theme) => ({
   search: {
     position: 'relative',
     borderRadius: theme.shape.borderRadius,
-    backgroundColor: fade(theme.palette.common.black, 0.15),
+    backgroundColor: alpha(theme.palette.common.black, 0.15),
     '&:hover': {
-      backgroundColor: fade(theme.palette.common.black, 0.25),
+      backgroundColor: alpha(theme.palette.common.black, 0.25),
     },
     marginRight: theme.spacing(2),
     marginLeft: 0,
@@ -154,11 +153,13 @@ export default function Navbar(props) {
   }, [state.darkMode]);
 
   useEffect(() => {
-    getAccountState(window.walletConnection.getAccountId()).then((r) => {
-      setAccountBalance(r.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","));
-    }).catch((e) => {
-      console.log(e);
-    })
+    if (window.walletConnection.getAccountId()) {
+      getAccountState(window.walletConnection.getAccountId()).then((r) => {
+        setAccountBalance(r.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+      }).catch((e) => {
+        console.log(e);
+      })
+    }
   }, []);
 
 
