@@ -244,6 +244,7 @@ const CallbackDialog = () => {
     setOpen(false);
   };
 
+  console.log(router.location)
 
   return (
 

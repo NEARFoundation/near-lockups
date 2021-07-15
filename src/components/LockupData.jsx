@@ -44,8 +44,6 @@ export default function LockupData(props) {
   }, [lockup]);
 
 
-  console.log(view);
-
   return (
     <div>
       {open && view ?
@@ -63,18 +61,18 @@ export default function LockupData(props) {
               <div
                 style={{wordBreak: "break-word"}}>lockup: <b>{accountToLockup(nearConfig.lockupAccount, view.owner)}</b>
               </div>
+              <div>total amount (owner + lockup): <b>Ⓝ {view.totalAmount}</b></div>
               <div>lockup amount: <b>Ⓝ {yoktoToNear(view.lockupAmount)}</b></div>
-              <div>release duration: <b>{timestampToReadable(new Decimal(view.releaseDuration).mul(1000000000 * 60 * 60 * 24).toString())}</b></div>
-              <div>release start: <b>{view.lockupReleaseStartDate.toDateString()}</b></div>
+              <div>lockup release duration: <b>{timestampToReadable(new Decimal(view.releaseDuration).mul(1000000000 * 60 * 60 * 24).toString())}</b></div>
+              <div>lockup release start date: <b>{view.lockupReleaseStartDate.toDateString()}</b></div>
               <div>liquid amount: <b>Ⓝ {view.liquidAmount}</b></div>
-              <div>total amount: <b>Ⓝ {view.totalAmount}</b></div>
               <div>
                 vesting schedule: {view.vestingInformation ?
                 <>
                   <ul>
-                    <li style={{wordBreak: "break-word"}}>Vesting Start: {convertDuration(view.vestingInformation.vestingStart).toDateString()}</li>
-                    <li style={{wordBreak: "break-word"}}>Vesting Cliff: {convertDuration(view.vestingInformation.vestingCliff).toDateString()}</li>
-                    <li style={{wordBreak: "break-word"}}>Vesting End: {convertDuration(view.vestingInformation.vestingEnd).toDateString()}</li>
+                    <li style={{wordBreak: "break-word"}}>Vesting Start Date: {convertDuration(view.vestingInformation.vestingStart).toDateString()}</li>
+                    <li style={{wordBreak: "break-word"}}>Vesting Cliff Date: {convertDuration(view.vestingInformation.vestingCliff).toDateString()}</li>
+                    <li style={{wordBreak: "break-word"}}>Vesting End Date: {convertDuration(view.vestingInformation.vestingEnd).toDateString()}</li>
                   </ul>
                 </>
                 : "no"
