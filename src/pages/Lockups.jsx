@@ -50,7 +50,7 @@ import {
   numberFormatted,
   dateToNs,
   truncate,
-  viewLookup, viewLookupOld, viewLookupNew
+  viewLookup, viewLookupOld, viewLookupNew, timestampToReadable
 } from '../utils/funcs'
 import {Decimal} from 'decimal.js';
 import {useGlobalState, useGlobalMutation} from '../utils/container'
@@ -531,6 +531,8 @@ const Lockups = () => {
     };
 
     const [openAlert1, setOpenAlert1] = useState(true);
+    const [openAlert2, setOpenAlert2] = useState(true);
+    const [openAlert3, setOpenAlert3] = useState(true);
     const [accountValidator, setAccountValidator] = useState(false);
     const [lockupValidator, setLockupValidator] = useState(false);
     const [amountValidator, setAmountValidator] = useState(false);
@@ -550,6 +552,15 @@ const Lockups = () => {
       setAmountValidator(result)
       setCheckedContractData(!checkedContractData ? false : result);
     }
+
+    const handleVestingSelectDates = (event) => {
+      const vestingCliffDate = new Date(new Decimal(dateToNs(event)).plus(3.154e+16).div(1_000_000).toNumber());
+      const vestingEndDate = new Date(new Decimal(dateToNs(event)).plus(1.261e+17).div(1_000_000).toNumber());
+      setVestingStartTimestampDate(event)
+      setVestingCliffTimestampDate(vestingCliffDate)
+      setVestingEndTimestampDate(vestingEndDate)
+
+    };
 
     return (
       <div className={classes.root}>
@@ -687,7 +698,7 @@ const Lockups = () => {
                     </Grid>
                     <Grid item xs={12} md={12}>
                       <div className={classes.alertRoot}>
-                        <Collapse in={openAlert1}>
+                        <Collapse in={openAlert2}>
                           <Alert
                             severity="success"
                             color="info"
@@ -697,7 +708,7 @@ const Lockups = () => {
                                 color="inherit"
                                 size="small"
                                 onClick={() => {
-                                  setOpenAlert1(false);
+                                  setOpenAlert2(false);
                                 }}
                               >
                                 <CloseIcon fontSize="inherit"/>
@@ -711,39 +722,45 @@ const Lockups = () => {
                           </Alert>
                         </Collapse>
                       </div>
-                      <FormControl variant="outlined" className={classes.formControl}>
-                        <InputLabel id="vestingScheduleLabel">Vesting Schedule</InputLabel>
-                        <Select
-                          labelId="vestingScheduleLabel"
-                          onChange={handleVestingSelectChange}
-                          id="vestingScheduleId"
-                          value={vestingSchedule}
-                          label="Vesting Schedule"
-                        >
-                          <MenuItem value={0}>None</MenuItem>
-                          <MenuItem value={1}>Vesting Schedule</MenuItem>
-                        </Select>
-                      </FormControl>
                     </Grid>
-                    {!hideVesting ?
-                      <Grid container spacing={3}>
-                        <Grid item xs={12} md={4}>
-                          <MuiPickersUtilsProvider utils={DateFnsUtils}>
-                            <KeyboardDatePicker
-                              required={!hideVesting}
-                              fullWidth
-                              variant="inline"
-                              inputVariant="outlined"
-                              autoOk
-                              id="vestingStartTimestampId"
-                              label="Start Timestamp"
-                              format="MMM dd yyyy"
-                              value={vestingStartTimestampDate}
-                              InputAdornmentProps={{position: "start"}}
-                              onChange={setVestingStartTimestampDate}
-                            />
-                          </MuiPickersUtilsProvider>
-                        </Grid>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={4}>
+                        <FormControl variant="outlined" className={classes.formControl}>
+                          <InputLabel id="vestingScheduleLabel">Vesting Schedule</InputLabel>
+                          <Select
+                            labelId="vestingScheduleLabel"
+                            onChange={handleVestingSelectChange}
+                            id="vestingScheduleId"
+                            value={vestingSchedule}
+                            label="Vesting Schedule"
+                          >
+                            <MenuItem value={0}>None</MenuItem>
+                            <MenuItem value={1}>Vesting Schedule</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      {!hideVesting ?
+                        <>
+                          <Grid item xs={12} md={4}>
+                            <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                              <KeyboardDatePicker
+                                required={!hideVesting}
+                                fullWidth
+                                variant="inline"
+                                inputVariant="outlined"
+                                autoOk
+                                id="vestingStartTimestampId"
+                                label="Vesting Start Date"
+                                format="MMM dd yyyy"
+                                value={vestingStartTimestampDate}
+                                InputAdornmentProps={{position: "start"}}
+                                onChange={handleVestingSelectDates}
+                              />
+                            </MuiPickersUtilsProvider>
+                          </Grid>
+
+
+                          {/*
                         <Grid item xs={12} md={4}>
                           <MuiPickersUtilsProvider utils={DateFnsUtils}>
                             <KeyboardDatePicker
@@ -778,9 +795,45 @@ const Lockups = () => {
                             />
                           </MuiPickersUtilsProvider>
                         </Grid>
+                        */}
+                        </>
+                        : null
+                      }
+                    </Grid>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12}>
+                        {vestingCliffTimestampDate && vestingEndTimestampDate ?
+                          <div>
+                            <div className={classes.alertRoot}>
+                              <Collapse in={openAlert3}>
+                                <Alert
+                                  severity="info"
+                                  color="info"
+                                  action={
+                                    <IconButton
+                                      aria-label="close"
+                                      color="inherit"
+                                      size="small"
+                                      onClick={() => {
+                                        setOpenAlert3(false);
+                                      }}
+                                    >
+                                      <CloseIcon fontSize="inherit"/>
+                                    </IconButton>
+                                  }
+                                >
+                                  25% of locked tokens will be unlocked
+                                  on <b>{vestingCliffTimestampDate.toLocaleDateString()}</b> and remaining balance will be
+                                  release linearly over the next 3 years, with all tokens unlocked
+                                  on <b>{vestingEndTimestampDate.toLocaleDateString()}</b>
+                                </Alert>
+                              </Collapse>
+                            </div>
+                          </div>
+                          : null}
                       </Grid>
-                      : null
-                    }
+                    </Grid>
+
                     <Grid container justify="flex-start" spacing={1} style={{marginTop: 20, marginLeft: 6}}>
                       <Grid item xs={12} md={12}>
                         <FormControlLabel
