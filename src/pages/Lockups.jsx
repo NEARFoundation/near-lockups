@@ -823,9 +823,9 @@ const Lockups = () => {
                                   }
                                 >
                                   25% of locked tokens will be unlocked
-                                  on <b>{vestingCliffTimestampDate.toLocaleDateString()}</b> and remaining balance will be
+                                  on <b>{vestingCliffTimestampDate.toDateString()}</b> and remaining balance will be
                                   release linearly over the next 3 years, with all tokens unlocked
-                                  on <b>{vestingEndTimestampDate.toLocaleDateString()}</b>
+                                  on <b>{vestingEndTimestampDate.toDateString()}</b>
                                 </Alert>
                               </Collapse>
                             </div>
