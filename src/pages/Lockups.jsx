@@ -752,6 +752,7 @@ const Lockups = () => {
                                 id="vestingStartTimestampId"
                                 label="Vesting Start Date"
                                 format="MMM dd yyyy"
+                                minDate="2020-10-13"
                                 value={vestingStartTimestampDate}
                                 InputAdornmentProps={{position: "start"}}
                                 onChange={handleVestingSelectDates}

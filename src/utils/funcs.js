@@ -286,26 +286,47 @@ export async function viewLookupNew(inputAccountId) {
         }
       }
 
-      if (lockupReleaseStartTimestamp.lte(new BN(now.toString()))) {
-        if (releaseComplete) {
-          lockedAmount = new BN(0);
-        } else {
-          if (lockupState.releaseDuration) {
-            lockedAmount = (new BN(lockupState.lockupAmount)
-                .mul(timeLeft)
-                .div(duration)
-            );
-            lockedAmount = BN.max(
-              lockedAmount.sub(new BN(lockupState.terminationWithdrawnTokens)),
-              unvestedAmount,
-            )
+
+      let currentBlock = await provider.block({finality: 'final'});
+      console.log(currentBlock)
+
+      const saturatingSub = (a, b) => {
+        let res = a.sub(b);
+        return res.gte(new BN(0)) ? res : new BN(0);
+      };
+
+      let blockTimestamp = new BN(currentBlock.header.timestamp_nanosec); // !!! Never take `timestamp`, it is rounded
+      if (blockTimestamp.lt(lockupState.lockupTimestamp)) {
+        return saturatingSub(
+          lockupState.lockupAmount,
+          lockupState.terminationWithdrawnTokens
+        );
+      }
+
+
+      if (lockupState.vestingInformation) {
+        if (lockupState.vestingInformation.unvestedAmount) {
+          // was terminated
+          unvestedAmount = lockupState.vestingInformation.unvestedAmount;
+        } else if (lockupState.vestingInformation.start) {
+          // we have schedule
+          if (blockTimestamp.lt(lockupState.vestingInformation.cliff)) {
+            unvestedAmount = lockupState.lockupAmount;
+          } else if (blockTimestamp.gte(lockupState.vestingInformation.end)) {
+            unvestedAmount = new BN(0);
           } else {
-            lockedAmount = new BN(lockupState.lockupAmount);
+            let timeLeft = lockupState.vestingInformation.end.sub(blockTimestamp);
+            let totalTime = lockupState.vestingInformation.end.sub(
+              lockupState.vestingInformation.start
+            );
+            unvestedAmount = lockupState.lockupAmount.mul(timeLeft).div(totalTime);
           }
         }
-      } else {
-        lockedAmount = new BN(lockupState.lockupAmount);
       }
+      if (unvestedAmount === undefined) {
+        unvestedAmount = new BN(0);
+      }
+
 
       if (!lockupState.releaseDuration) {
         lockupState.releaseDuration = "0";

@@ -35,6 +35,7 @@ export default function LockupData(props) {
   useEffect(() => {
     viewLookupNew(lockup).then((r) => {
       setView(r);
+      console.log(r);
       setOpen(true);
     }).catch((e) => {
       console.log(e);
@@ -63,7 +64,7 @@ export default function LockupData(props) {
               </div>
               <div>total amount (owner + lockup): <b>Ⓝ {view.totalAmount}</b></div>
               <div>lockup amount: <b>Ⓝ {yoktoToNear(view.lockupAmount)}</b></div>
-              <div>lockup release duration: <b>{timestampToReadable(new Decimal(view.releaseDuration).mul(1000000000 * 60 * 60 * 24).toString())}</b></div>
+              <div>lockup release duration: <b>{view.releaseDuration ? timestampToReadable(new Decimal(view.releaseDuration).mul(1000000000 * 60 * 60 * 24).toString()) : 0}</b></div>
               <div>lockup release start date: <b>{view.lockupReleaseStartDate.toDateString()}</b></div>
               <div>liquid amount: <b>Ⓝ {view.liquidAmount}</b></div>
               <div>
