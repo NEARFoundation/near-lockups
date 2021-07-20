@@ -1,4 +1,4 @@
-const CONTRACT_NAME = process.env.CONTRACT_NAME || 'lockup.devnet'
+const CONTRACT_NAME = process.env.CONTRACT_NAME || 'lockup.near'
 
 function getConfig(env) {
   switch (env) {
