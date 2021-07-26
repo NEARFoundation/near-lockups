@@ -172,6 +172,7 @@ const ViewLockups = () => {
                     }}
                     pageSize={5}
                     checkboxSelection
+                    disableSelectionOnClick
           />
         </div>
         <CardContent>
@@ -621,81 +622,6 @@ const Lockups = () => {
                       validatorListener={amountValidatorListener}
                       errorMessages={['this field is required', 'minimum NEAR 3.5', 'please enter the amount in NEAR']}
                     />
-                    <Grid container spacing={3}>
-                      <Grid item xs={12} md={12}>
-                        <div className={classes.alertRoot}>
-                          <Collapse in={openAlert1}>
-                            <Alert
-                              severity="success"
-                              color="info"
-                              action={
-                                <IconButton
-                                  aria-label="close"
-                                  color="inherit"
-                                  size="small"
-                                  onClick={() => {
-                                    setOpenAlert1(false);
-                                  }}
-                                >
-                                  <CloseIcon fontSize="inherit"/>
-                                </IconButton>
-                              }
-                            >
-                              <AlertTitle>Lockup Schedule</AlertTitle>
-                              <li><b>Lockup Start Date</b> or lockup timestamp - the moment when tokens start linearly
-                                unlocking.
-                              </li>
-                              <li><b>Release Duration</b> - The length of the unlocking schedule during which tokens are
-                                linearly unlocked.
-                              </li>
-                              Please view a detailed specification <a
-                              href="https://github.com/near/core-contracts/tree/master/lockup" target="_blank"
-                              rel="nofollow">here</a>
-                            </Alert>
-                          </Collapse>
-                        </div>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <MuiPickersUtilsProvider utils={DateFnsUtils}>
-                          <KeyboardDatePicker
-                            fullWidth
-                            variant="inline"
-                            inputVariant="outlined"
-                            autoOk
-                            name="lockupStartDate"
-                            id="lockupStartDateId"
-                            label="Lockup Start Date"
-                            format="MMM dd yyyy"
-                            value={lockupStartDate}
-                            InputAdornmentProps={{position: "start"}}
-                            onChange={setLockupStartDate}
-                          />
-                        </MuiPickersUtilsProvider>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <SelectValidator
-                          variant="outlined"
-                          className={classes.card}
-                          id="releaseDurationId"
-                          name="releaseDuration"
-                          label="Release Duration"
-                          value={state.releaseDuration}
-                          onChange={handleChange}
-                          SelectProps={{
-                            native: false
-                          }}
-                        >
-                          <MenuItem value={null}><em>None</em></MenuItem>
-                          <MenuItem value={3}>3 months</MenuItem>
-                          <MenuItem value={6}>6 months</MenuItem>
-                          <MenuItem value={12}>1 Year (12 months)</MenuItem>
-                          <MenuItem value={24}>2 Years (24 months)</MenuItem>
-                          <MenuItem value={36}>3 Years (36 months)</MenuItem>
-                          <MenuItem value={48}>4 Years (48 months)</MenuItem>
-                        </SelectValidator>
-                      </Grid>
-
-                    </Grid>
                     <Grid item xs={12} md={12}>
                       <div className={classes.alertRoot}>
                         <Collapse in={openAlert2}>
@@ -834,6 +760,85 @@ const Lockups = () => {
                           : null}
                       </Grid>
                     </Grid>
+
+                    {hideVesting ?
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} md={12}>
+                          <div className={classes.alertRoot}>
+                            <Collapse in={openAlert1}>
+                              <Alert
+                                severity="success"
+                                color="info"
+                                action={
+                                  <IconButton
+                                    aria-label="close"
+                                    color="inherit"
+                                    size="small"
+                                    onClick={() => {
+                                      setOpenAlert1(false);
+                                    }}
+                                  >
+                                    <CloseIcon fontSize="inherit"/>
+                                  </IconButton>
+                                }
+                              >
+                                <AlertTitle>Lockup Schedule</AlertTitle>
+                                <li><b>Unlock Start Date</b> or lockup timestamp - the moment when tokens start linearly
+                                  unlocking.
+                                </li>
+                                <li><b>Release Duration</b> - The length of the unlocking schedule during which tokens are
+                                  linearly unlocked.
+                                </li>
+                                Please view a detailed specification <a
+                                href="https://github.com/near/core-contracts/tree/master/lockup" target="_blank"
+                                rel="nofollow">here</a>
+                              </Alert>
+                            </Collapse>
+                          </div>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                            <KeyboardDatePicker
+                              fullWidth
+                              variant="inline"
+                              inputVariant="outlined"
+                              autoOk
+                              name="lockupStartDate"
+                              id="lockupStartDateId"
+                              label="Unlock Start Date"
+                              format="MMM dd yyyy"
+                              value={lockupStartDate}
+                              InputAdornmentProps={{position: "start"}}
+                              onChange={setLockupStartDate}
+                            />
+                          </MuiPickersUtilsProvider>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <SelectValidator
+                            variant="outlined"
+                            className={classes.card}
+                            id="releaseDurationId"
+                            name="releaseDuration"
+                            label="Release Duration"
+                            value={state.releaseDuration}
+                            onChange={handleChange}
+                            SelectProps={{
+                              native: false
+                            }}
+                          >
+                            <MenuItem value={null}><em>None</em></MenuItem>
+                            <MenuItem value={3}>3 months</MenuItem>
+                            <MenuItem value={6}>6 months</MenuItem>
+                            <MenuItem value={12}>1 Year (12 months)</MenuItem>
+                            <MenuItem value={18}>1.5 Year (18 months)</MenuItem>
+                            <MenuItem value={24}>2 Years (24 months)</MenuItem>
+                            <MenuItem value={36}>3 Years (36 months)</MenuItem>
+                            <MenuItem value={48}>4 Years (48 months)</MenuItem>
+                          </SelectValidator>
+                        </Grid>
+
+                      </Grid>
+                      : null}
 
                     <Grid container justify="flex-start" spacing={1} style={{marginTop: 20, marginLeft: 6}}>
                       <Grid item xs={12} md={12}>

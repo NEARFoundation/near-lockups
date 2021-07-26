@@ -94,6 +94,7 @@ export async function viewLockupState(connection, contractId) {
   let lockupDuration = reader.readU64().toString();
   let releaseDuration = readOption(reader, () => reader.readU64().toString());
   let lockupTimestamp = readOption(reader, () => reader.readU64().toString());
+  console.log(lockupTimestamp);
   let tiType = reader.readU8();
   let transferInformation;
   if (tiType === 0) {
@@ -288,7 +289,6 @@ export async function viewLookupNew(inputAccountId) {
 
 
       let currentBlock = await provider.block({finality: 'final'});
-      console.log(currentBlock)
 
       const saturatingSub = (a, b) => {
         let res = a.sub(b);
@@ -327,24 +327,42 @@ export async function viewLookupNew(inputAccountId) {
         unvestedAmount = new BN(0);
       }
 
+      if (lockupReleaseStartTimestamp.lte(new BN(now.toString()))) {
+        if (releaseComplete) {
+          lockedAmount = new BN(0);
+        } else {
+          if (lockupState.releaseDuration) {
+            lockedAmount = (new BN(lockupState.lockupAmount)
+                .mul(timeLeft)
+                .div(duration)
+            );
+            lockedAmount = BN.max(
+              lockedAmount.sub(new BN(lockupState.terminationWithdrawnTokens)),
+              unvestedAmount,
+            )
+          } else {
+            lockedAmount = new BN(lockupState.lockupAmount).sub(new BN(lockupState.terminationWithdrawnTokens));
+          }
+        }
+      } else {
+        lockedAmount = new BN(lockupState.lockupAmount).sub(new BN(lockupState.terminationWithdrawnTokens));
+      }
 
       if (!lockupState.releaseDuration) {
         lockupState.releaseDuration = "0";
       }
+
     }
   } catch (error) {
-    console.error(error);
+    console.log(error);
     if (accountId.length < 64) {
       accountId = `${accountId} doesn't exist`;
     }
     ownerAccountBalance = 0;
-    lockupAccountBalance = 0;
+    //lockupAccountBalance = 0;
   }
 
-
   let result = {}
-
-  console.log(lockupState.lockupAmount)
 
   result.lockupAmount = lockupState.lockupAmount;
   result.owner = lockupState.owner;
