@@ -9,7 +9,7 @@ import {
   Divider,
   Avatar,
   Chip,
-  InputBase,
+  InputBase, capitalize,
 } from "@material-ui/core";
 import {alpha, makeStyles} from '@material-ui/core/styles';
 import MenuIcon from "@material-ui/icons/Menu";
@@ -21,6 +21,8 @@ import {login, logout} from '../utils'
 import getConfig from "../config";
 import * as nearApi from "near-api-js";
 import {truncate} from '../utils/funcs'
+const nearConfig = getConfig(process.env.NODE_ENV || 'development')
+
 
 
 const useStyles = makeStyles((theme) => ({
@@ -114,7 +116,6 @@ export default function Navbar(props) {
   });
 
   async function getAccountState(accountId) {
-    const nearConfig = getConfig(process.env.NODE_ENV || 'development')
     const provider = new nearApi.providers.JsonRpcProvider(nearConfig.nodeUrl);
     const connection = new nearApi.Connection(nearConfig.nodeUrl, provider, {});
     try {
@@ -127,7 +128,6 @@ export default function Navbar(props) {
   }
 
   const handleDarkModeToggle = () => {
-    console.log(!state.darkMode);
     setState({...state, darkMode: !state.darkMode});
 
   };
@@ -240,7 +240,9 @@ export default function Navbar(props) {
           <div className={classes.drawerContainer}>
             {nearLogo}
             <Divider/>
-            {darkSwitch}
+            dark / light: {darkSwitch}
+            <Divider/>
+            <div align="center" style={{textTransform: "uppercase"}}><b>{nearConfig.networkId}</b></div>
             <Divider/>
             {getMenuButtons(true)}
           </div>
@@ -255,7 +257,7 @@ export default function Navbar(props) {
   const appLogo = (
     <>
       <Typography variant="h6" component="h1" className={classes.title}>
-        NEAR LOCKUPS
+        NEAR LOCKUPS - <span style={{textTransform: "uppercase"}}>{nearConfig.networkId}</span>
       </Typography>
     </>
   );

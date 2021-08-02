@@ -570,6 +570,15 @@ const Lockups = () => {
         <Container component="main" className={classes.main}>
           {showLockupData && lockup ? <LockupData lockup={lockup} onClose={onClose}/> : null}
           <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Alert
+                severity="error"
+                color="error"
+              >
+                <AlertTitle>Disclaimer</AlertTitle>
+                Beta software. Test in prod. Not audited. Use at your own risk!
+              </Alert>
+            </Grid>
             <Grid item xs={12} md={8}>
               <Card className={classes.card} variant="outlined">
                 <CardContent>
@@ -642,6 +651,8 @@ const Lockups = () => {
                             }
                           >
                             <AlertTitle>Vesting Schedule</AlertTitle>
+                            <b>Attention! Lockup with vesting CAN ONLY BE CANCELLED BY FOUNDATION</b>
+                            <br/><br/>
                             The contract could have both lockup and vesting schedules. The current amount of non-liquid
                             tokens are calculated as the maximum between lockup and vesting logic. If at least one
                             mechanism said the tokens are locked, then they are still locked.
@@ -783,6 +794,8 @@ const Lockups = () => {
                                 }
                               >
                                 <AlertTitle>Lockup Schedule</AlertTitle>
+                                <b>Attention! Lockup with no vesting CANNOT BE CANCELLED</b>
+                                <br/><br/>
                                 <li><b>Unlock Start Date</b> or lockup timestamp - the moment when tokens start linearly
                                   unlocking.
                                 </li>
