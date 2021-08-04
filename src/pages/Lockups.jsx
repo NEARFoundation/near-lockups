@@ -6,32 +6,30 @@ import {
   Card,
   CardActions,
   CardContent,
-  Container,
-  Grid,
-  makeStyles,
-  InputAdornment,
-  Typography,
-  Icon,
   CircularProgress,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
+  Collapse,
+  Container,
   Dialog,
-  DialogTitle,
+  DialogActions,
   DialogContent,
   DialogContentText,
-  DialogActions,
+  DialogTitle,
   Divider,
-  Link,
+  FormControl,
   FormControlLabel,
-  Switch, Collapse, IconButton,
+  Grid,
+  Icon,
+  IconButton,
+  InputAdornment,
+  InputLabel,
+  Link,
+  makeStyles,
+  MenuItem,
+  Select,
+  Switch,
+  Typography,
 } from "@material-ui/core";
-import {
-  MuiPickersUtilsProvider,
-  KeyboardDatePicker,
-} from '@material-ui/pickers';
+import {KeyboardDatePicker, MuiPickersUtilsProvider,} from '@material-ui/pickers';
 import {blue} from '@material-ui/core/colors';
 import DateFnsUtils from '@date-io/date-fns';
 import {useTheme} from '@material-ui/core/styles';
@@ -39,21 +37,15 @@ import useMediaQuery from '@material-ui/core/useMediaQuery';
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import CssBaseline from "@material-ui/core/CssBaseline";
-import {TextValidator, ValidatorForm, SelectValidator} from 'react-material-ui-form-validator';
+import {SelectValidator, TextValidator, ValidatorForm} from 'react-material-ui-form-validator';
 import {DataGrid, GridToolbarContainer, GridToolbarExport,} from '@material-ui/data-grid';
 import LockupData from "../components/LockupData";
 
 import * as nearApi from "near-api-js";
 import getConfig from "../config";
-import {
-  accountToLockup,
-  numberFormatted,
-  dateToNs,
-  truncate,
-  viewLookup, viewLookupOld, viewLookupNew, timestampToReadable
-} from '../utils/funcs'
+import {accountToLockup, dateToNs, numberFormatted, truncate} from '../utils/funcs'
 import {Decimal} from 'decimal.js';
-import {useGlobalState, useGlobalMutation} from '../utils/container'
+import {useGlobalMutation, useGlobalState} from '../utils/container'
 import {Alert, AlertTitle} from "@material-ui/lab";
 import CloseIcon from '@material-ui/icons/Close';
 import ReactJson from 'react-json-view'
@@ -270,6 +262,7 @@ const CallbackDialog = () => {
                 <div>
                   View <a target="_blank" rel="nofollow"
                           href={nearConfig.explorerUrl + "/transactions/" + uriString["transactionHashes"]}>transaction</a>
+                  <pre>TX Hash: {uriString["transactionHashes"]}</pre>
                 </div>
                 : null}
             </>
@@ -457,7 +450,7 @@ const Lockups = () => {
       const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
 
 
-      const jsonData = {
+      return {
         args:
           {
             owner_account_id: state.ownerAccountId,
@@ -474,10 +467,7 @@ const Lockups = () => {
           },
         gas: new Decimal(lockupGas).toString(),
         deposit: amount
-      }
-
-
-      return jsonData;
+      };
     }
 
     const checkLockup = (event) => {

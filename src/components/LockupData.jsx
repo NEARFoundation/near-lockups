@@ -71,9 +71,9 @@ export default function LockupData(props) {
                 vesting schedule: {view.vestingInformation ?
                 <>
                   <ul>
-                    <li style={{wordBreak: "break-word"}}>Vesting Start Date: {convertDuration(view.vestingInformation.vestingStart).toDateString()}</li>
-                    <li style={{wordBreak: "break-word"}}>Vesting Cliff Date: {convertDuration(view.vestingInformation.vestingCliff).toDateString()}</li>
-                    <li style={{wordBreak: "break-word"}}>Vesting End Date: {convertDuration(view.vestingInformation.vestingEnd).toDateString()}</li>
+                    <li style={{wordBreak: "break-word"}}>Vesting Start Date: {convertDuration(view.vestingInformation.start).toDateString()}</li>
+                    <li style={{wordBreak: "break-word"}}>Vesting Cliff Date: {convertDuration(view.vestingInformation.cliff).toDateString()}</li>
+                    <li style={{wordBreak: "break-word"}}>Vesting End Date: {convertDuration(view.vestingInformation.end).toDateString()}</li>
                   </ul>
                 </>
                 : "no"
