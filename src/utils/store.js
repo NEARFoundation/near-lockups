@@ -17,6 +17,7 @@ const defaultState = {
     darkMode: 'light',
     sentTx: null,
     createdLockups: [],
+    ledgerKeys: [],
     ...readDefaultState(),
   }
 }

@@ -122,7 +122,7 @@ async function viewLockupState(connection, contractId) {
       vestingInformation = {unvestedAmount, terminationStatus};
       break;
     default:
-      vestingInformation = 'TODO';
+      vestingInformation = null;
       break;
   }
 
@@ -300,19 +300,6 @@ async function getLockedTokenAmount(lockupState) {
     unvestedAmount
   );
 }
-
-function formatVestingInfo(info) {
-  if (!info.hasOwnProperty("start")) return "TODO";
-  const start = new Date(info.start.divn(1000000).toNumber());
-  const cliff = new Date(info.cliff.divn(1000000).toNumber());
-  const end = new Date(info.end.divn(1000000).toNumber());
-  return {
-    vestingStart: start,
-    vestingCliff: cliff,
-    vestingEnd: end,
-  };
-}
-
 
 export async function viewLookupNew(inputAccountId) {
 

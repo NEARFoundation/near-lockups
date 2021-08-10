@@ -72,6 +72,7 @@ export const ContainerProvider = ({children}) => {
         darkMode: state.config.darkMode,
         sentTx: state.config.sentTx,
         createdLockups: state.config.createdLockups,
+        ledgerKeys: state.config.ledgerKeys,
       })
     )
   }, [state])

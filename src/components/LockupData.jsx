@@ -6,7 +6,6 @@ import {
   accountToLockup,
   epochToHumanReadable,
   timestampToReadable,
-  viewLookupOld,
   viewLookupNew,
   yoktoToNear,
   convertDuration
