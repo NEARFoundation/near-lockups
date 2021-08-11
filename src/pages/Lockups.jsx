@@ -26,7 +26,7 @@ import {
   makeStyles,
   MenuItem,
   Select,
-  Switch,
+  Switch, TextField,
   Typography,
 } from "@material-ui/core";
 import {KeyboardDatePicker, MuiPickersUtilsProvider,} from '@material-ui/pickers';
@@ -602,6 +602,9 @@ const Lockups = () => {
     const [ledgerDialogMessage, setLedgerDialogMessage] = useState("");
     const [disableLedgerButton, setDisableLedgerButton] = useState(false);
     const [ledgerSign, setLedgerSign] = useState(null);
+    const [addFundingAccount, setAddFundingAccount] = useState(null);
+    const [signWithWallet, setSignWithWallet] = useState(null);
+    const [disableAddFundingAccount, setDisableAddFundingAccount] = useState(false);
 
     const handleDialogOpen = () => {
       setDialogOpen(false);
@@ -612,6 +615,7 @@ const Lockups = () => {
     }
 
     const handleLedgerChange = (event) => {
+      setDisableLedgerButton(true)
       if (event.target.name === "ledgerPath") {
         setLedgerPath(event.target.value)
       }
@@ -675,13 +679,68 @@ const Lockups = () => {
     const handleSubmit = async (e) => {
       e.preventDefault();
 
-      if (ledgerSign === null) {
-        return;
-      }
 
       const amount = nearApi.utils.format.parseNearAmount(state.amount);
       const releaseDuration = state.releaseDuration !== null ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
       const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
+
+      const client = await createLedgerU2FClient();
+
+      async function addPath(path, client) {
+        try {
+          let publicKey = await client.getPublicKey(path);
+          setDialogOpen(false);
+          return encode(Buffer.from(publicKey));
+        } catch (error) {
+          console.log(error);
+          setDialogOpen(true);
+          setLedgerErrorCode(error)
+          client.transport.close();
+          return false;
+        }
+      }
+
+      if (addFundingAccount) {
+        setLedgerDialogMessage("Please approve Ledger public key");
+        setLedgerDialogOpen(true);
+        addPath(ledgerPath, client).then((r) => {
+          if (r === false) {
+            setLedgerError(true);
+            setLedgerDialogOpen(false);
+            setDisableLedgerButton(false);
+            return false;
+          }
+          new nearApi.Account(connection, ledgerAccount).getAccessKeys().then((k) => {
+            let result = k.filter(obj => {
+              return obj.public_key === 'ed25519:' + r
+            })
+            if (result.length !== 0) {
+              setLedgerKey(r);
+              mutationCtx.updateConfig({
+                ledgerKeys: {
+                  key: r,
+                  path: ledgerPath,
+                  account: ledgerAccount
+                },
+              })
+              setLedgerDialogOpen(false);
+              setDisableAddFundingAccount(true);
+              setDisableLedgerButton(false);
+            } else {
+              setLedgerErrorCode('no matching keys found for this account');
+              setDialogOpen(true)
+              setLedgerDialogOpen(false);
+              setLedgerError(true)
+              client.transport.close();
+            }
+          }).catch((e) => {
+            console.log(e)
+          })
+        }).catch((error) => {
+          console.log(error)
+        })
+
+      }
 
       if (ledgerSign) {
 
@@ -699,23 +758,6 @@ const Lockups = () => {
           },
         };
 
-
-        const client = await createLedgerU2FClient();
-
-        async function addPath(path, client) {
-          console.log(path, client)
-          try {
-            let publicKey = await client.getPublicKey(path);
-            setDialogOpen(false);
-            return encode(Buffer.from(publicKey));
-          } catch (error) {
-            console.log(error);
-            setDialogOpen(true);
-            setLedgerErrorCode(error)
-            client.transport.close();
-            return false;
-          }
-        }
 
         const publicKey = nearApi.utils.PublicKey.fromString(ledgerKey);
 
@@ -745,9 +787,6 @@ const Lockups = () => {
             return false;
           }
           new nearApi.Account(connection, ledgerAccount).getAccessKeys().then((k) => {
-            console.log(k);
-            let match = true;
-
             let result = k.filter(obj => {
               return obj.public_key === 'ed25519:' + r
             })
@@ -804,8 +843,9 @@ const Lockups = () => {
           console.log(error)
         })
 
-      } else {
+      }
 
+      if (signWithWallet) {
         mutationCtx.updateConfig({
           sentTx: {
             lockup: accountToLockup(nearConfig.lockupAccount, state.ownerAccountId),
@@ -1305,6 +1345,10 @@ const Lockups = () => {
                                 <MenuItem value={"44'/397'/0'/0'/8'"}>44'/397'/0'/0'/8'</MenuItem>
                               </SelectValidator>
                             </Grid>
+                            <Grid item xs={12}>
+                              <TextField variant="outlined" label="Ledger Public Key" disabled={true} fullWidth
+                                         value={ledgerKey}/>
+                            </Grid>
                           </Grid>
                         </CardContent>
                       </Card>
@@ -1392,7 +1436,16 @@ const Lockups = () => {
                         style={{marginRight: 10}}
                         variant="contained"
                         color="primary" type="submit"
-                        disabled={disableLedgerButton}
+                        disabled={disableAddFundingAccount}
+                        onClick={() => {
+                          setAddFundingAccount(true)
+                        }}
+                      >Add/Change Funding Account</Button>
+                      <Button
+                        style={{marginRight: 10}}
+                        variant="contained"
+                        color="primary" type="submit"
+                        disabled={disableLedgerButton || ledgerKey === ''}
                         onClick={() => {
                           setLedgerSign(true)
                         }}
@@ -1403,7 +1456,7 @@ const Lockups = () => {
                         endIcon={<Icon>send</Icon>}
                         disabled={!window.walletConnection.isSignedIn()}
                         onClick={() => {
-                          setLedgerSign(false)
+                          setSignWithWallet(true)
                         }}
                       >SIGN WITH WALLET</Button>
                       {showSpinner && <CircularProgress size={48} className={classes.buttonProgress}/>}
