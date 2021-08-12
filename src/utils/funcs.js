@@ -78,23 +78,21 @@ function readOption(reader, f) {
 }
 
 
-export async function viewLockupState(connection, contractId) {
+async function viewLockupState(connection, contractId) {
   const result = await connection.provider.sendJsonRpc("query", {
     request_type: "view_state",
     finality: "final",
     account_id: contractId,
     prefix_base64: "U1RBVEU=",
   });
-
   let value = Buffer.from(result.values[0].value, 'base64');
   let reader = new nearApi.utils.serialize.BinaryReader(value);
   let owner = reader.readString();
   let lockupAmount = reader.readU128().toString();
   let terminationWithdrawnTokens = reader.readU128().toString();
   let lockupDuration = reader.readU64().toString();
-  let releaseDuration = readOption(reader, () => reader.readU64().toString());
-  let lockupTimestamp = readOption(reader, () => reader.readU64().toString());
-  console.log(lockupTimestamp);
+  let releaseDuration = readOption(reader, () => reader.readU64().toString(), "0");
+  let lockupTimestamp = readOption(reader, () => reader.readU64().toString(), "0");
   let tiType = reader.readU8();
   let transferInformation;
   if (tiType === 0) {
@@ -107,25 +105,34 @@ export async function viewLockupState(connection, contractId) {
     };
   }
   let vestingType = reader.readU8();
-  let vestingInformation = null;
-  if (vestingType === 1) {
-    vestingInformation = {VestingHash: reader.readArray(() => reader.readU8())};
-  } else if (vestingType === 2) {
-    let vestingStart = reader.readU64();
-    let vestingCliff = reader.readU64();
-    let vestingEnd = reader.readU64();
-    vestingInformation = {vestingStart, vestingCliff, vestingEnd};
-  } else if (vestingType === 3) {
-    vestingInformation = 'TODO';
+  let vestingInformation;
+  switch (vestingType) {
+    case 1:
+      vestingInformation = {vestingHash: reader.readArray(() => reader.readU8())};
+      break;
+    case 2:
+      let start = reader.readU64();
+      let cliff = reader.readU64();
+      let end = reader.readU64();
+      vestingInformation = {start, cliff, end};
+      break;
+    case 3:
+      let unvestedAmount = reader.readU128();
+      let terminationStatus = reader.readU8();
+      vestingInformation = {unvestedAmount, terminationStatus};
+      break;
+    default:
+      vestingInformation = null;
+      break;
   }
 
   return {
     owner,
-    lockupAmount,
-    terminationWithdrawnTokens,
-    lockupDuration,
-    releaseDuration,
-    lockupTimestamp,
+    lockupAmount: new BN(lockupAmount),
+    terminationWithdrawnTokens: new BN(terminationWithdrawnTokens),
+    lockupDuration: new BN(lockupDuration),
+    releaseDuration: new BN(releaseDuration),
+    lockupTimestamp: new BN(lockupTimestamp),
     transferInformation,
     vestingInformation,
   }
@@ -186,19 +193,23 @@ function prepareAccountId(data) {
 
 
 async function lookupLockup(near, accountId) {
-  const lockupAccountId = accountToLockup(nearConfig.lockupAccount, accountId);
-  try {
-    const lockupAccount = await near.account(lockupAccountId);
-    const lockupAccountBalance = await lockupAccount.viewFunction(lockupAccountId, 'get_balance', {});
-    const lockupState = await viewLockupState(near.connection, lockupAccountId);
-    lockupState.hasBrokenTimestamp = (await lockupAccount.state()).code_hash === '3kVY9qcVRoW3B5498SMX6R3rtSLiCdmBzKs7zcnzDJ7Q';
-    return {lockupAccountId, lockupAccountBalance, lockupState};
-  } catch (error) {
-    console.error(error);
-    return {lockupAccountId: `${lockupAccountId} doesn't exist`, lockupAmount: 0};
-  }
+    const lockupAccountId = accountToLockup(nearConfig.lockupAccount, accountId);
+    console.log(lockupAccountId);
+    try {
+        const lockupAccount = await near.account(lockupAccountId);
+        const lockupAccountBalance = await lockupAccount.viewFunction(lockupAccountId, 'get_balance', {});
+        const lockupState = await viewLockupState(near.connection, lockupAccountId);
+        // More details: https://github.com/near/core-contracts/pull/136
+        lockupState.hasBrokenTimestamp = [
+            '3kVY9qcVRoW3B5498SMX6R3rtSLiCdmBzKs7zcnzDJ7Q',
+            'DiC9bKCqUHqoYqUXovAnqugiuntHWnM3cAc7KrgaHTu'
+        ].includes((await lockupAccount.state()).code_hash);
+        return { lockupAccountId, lockupAccountBalance, lockupState };
+    } catch (error) {
+        console.warn(error);
+        return { lockupAccountId: `${lockupAccountId} doesn't exist`, lockupAmount: 0 };
+    }
 }
-
 
 const options = {
   nodeUrl: nearConfig.nodeUrl,
@@ -206,161 +217,116 @@ const options = {
   deps: {}
 };
 
+
+function getStartLockupTimestamp(lockupState) {
+  const phase2Time = new BN("1602614338293769340");
+  let lockupTimestamp = BN.max(
+    phase2Time.add(lockupState.lockupDuration),
+    lockupState.lockupTimestamp
+  );
+  return lockupState.hasBrokenTimestamp ? phase2Time : lockupTimestamp;
+}
+
+const saturatingSub = (a, b) => {
+  let res = a.sub(b);
+  return res.gte(new BN(0)) ? res : new BN(0);
+};
+
+// https://github.com/near/core-contracts/blob/master/lockup/src/getters.rs#L64
+async function getLockedTokenAmount(lockupState) {
+  const phase2Time = new BN("1602614338293769340");
+  let now = new BN((new Date().getTime() * 1000000).toString());
+  if (now.lte(phase2Time)) {
+    return saturatingSub(
+      lockupState.lockupAmount,
+      lockupState.terminationWithdrawnTokens
+    );
+  }
+
+  let lockupTimestamp = BN.max(
+    phase2Time.add(lockupState.lockupDuration),
+    lockupState.lockupTimestamp
+  );
+  let blockTimestamp = now;
+  if (blockTimestamp.lt(lockupTimestamp)) {
+    return saturatingSub(
+      lockupState.lockupAmount,
+      lockupState.terminationWithdrawnTokens
+    );
+  }
+
+  let unreleasedAmount;
+  if (lockupState.releaseDuration) {
+    let startTimestamp = getStartLockupTimestamp(lockupState);
+    let endTimestamp = startTimestamp.add(lockupState.releaseDuration);
+    if (endTimestamp.lt(blockTimestamp)) {
+      unreleasedAmount = new BN(0);
+    } else {
+      let timeLeft = endTimestamp.sub(blockTimestamp);
+      unreleasedAmount = lockupState.lockupAmount
+        .mul(timeLeft)
+        .div(lockupState.releaseDuration);
+    }
+  } else {
+    unreleasedAmount = new BN(0);
+  }
+
+  let unvestedAmount;
+  if (lockupState.vestingInformation) {
+    if (lockupState.vestingInformation.unvestedAmount) {
+      // was terminated
+      unvestedAmount = lockupState.vestingInformation.unvestedAmount;
+    } else if (lockupState.vestingInformation.start) {
+      // we have schedule
+      if (blockTimestamp.lt(lockupState.vestingInformation.cliff)) {
+        unvestedAmount = lockupState.lockupAmount;
+      } else if (blockTimestamp.gte(lockupState.vestingInformation.end)) {
+        unvestedAmount = new BN(0);
+      } else {
+        let timeLeft = lockupState.vestingInformation.end.sub(blockTimestamp);
+        let totalTime = lockupState.vestingInformation.end.sub(
+          lockupState.vestingInformation.start
+        );
+        unvestedAmount = lockupState.lockupAmount.mul(timeLeft).div(totalTime);
+      }
+    }
+  }
+  if (unvestedAmount === undefined) {
+    unvestedAmount = new BN(0);
+  }
+
+  return BN.max(
+    saturatingSub(unreleasedAmount, lockupState.terminationWithdrawnTokens),
+    unvestedAmount
+  );
+}
+
 export async function viewLookupNew(inputAccountId) {
+
   const near = await nearApi.connect(options);
   let accountId = prepareAccountId(inputAccountId);
 
-  let lockupAccountId = '', lockupAccountBalance = 0, ownerAccountBalance = 0, lockupReleaseStartTimestamp,
-    lockupState = {}, lockedAmount = 0, timeLeft = 0;
-  let phase2Timestamp = new BN("1602614338293769340");
-  let phase2 = new Date(phase2Timestamp.divn(1000000).toNumber());
-
+  let lockupAccountId = '', lockupAccountBalance = 0, ownerAccountBalance = 0, lockupReleaseStartTimestamp = new BN(0),
+    lockupState = {}, lockedAmount = 0;
   try {
     let account = await near.account(accountId);
     let state = await account.state();
-
     ownerAccountBalance = state.amount;
-
     ({lockupAccountId, lockupAccountBalance, lockupState} = await lookupLockup(near, accountId));
-    if (lockupAccountBalance !== 0) {
-      lockupReleaseStartTimestamp = BN.max(
-        phase2Timestamp.add(new BN(lockupState.lockupDuration)),
-        new BN(!lockupState.hasBrokenTimestamp && lockupState.lockupTimestamp ? lockupState.lockupTimestamp : 0),
-      );
-      const duration = lockupState.releaseDuration ? new BN(lockupState.releaseDuration) : new BN(0);
-      const now = new BN((new Date().getTime() * 1000000).toString());
-
-      const endTimestamp = lockupReleaseStartTimestamp.add(duration);
-      const timeLeft = endTimestamp.sub(now);
-      const releaseComplete = timeLeft.lten(0);
-
-      lockupState.releaseDuration = lockupState.releaseDuration ? duration
-          .div(new BN("1000000000"))
-          .divn(60)
-          .divn(60)
-          .divn(24)
-          .toString(10)
-        : null;
-
-      if (lockupState.lockupDuration) {
-        lockupState.lockupDuration = parseInt(lockupState.lockupDuration) / 1000000000 / 60 / 60 / 24;
-      } else {
-        lockupState.lockupDuration = null;
-      }
-
-      const vestingInformation = {...lockupState.vestingInformation};
-      let unvestedAmount = new BN(0);
-
-      if (lockupState.vestingInformation) {
-        if (lockupState.vestingInformation.VestingHash) {
-          lockupState.vestingInformation = `Hash: ${Buffer.from(lockupState.vestingInformation.VestingHash).toString('base64')}`;
-        } else if (lockupState.vestingInformation.vestingStart) {
-          let vestingStart = new Date(
-            lockupState.vestingInformation.vestingStart
-              .divn(1000000)
-              .toNumber()
-          );
-          if (vestingStart > phase2) {
-            const vestingCliff = new Date(
-              lockupState.vestingInformation.vestingCliff
-                .divn(1000000)
-                .toNumber()
-            );
-            const vestingEnd = new Date(
-              lockupState.vestingInformation.vestingEnd
-                .divn(1000000)
-                .toNumber()
-            );
-            //lockupState.vestingInformation = `from ${vestingStart} until ${vestingEnd} with cliff at ${vestingCliff}`;
-            if (now.lt(vestingInformation.vestingCliff)) {
-              unvestedAmount = new BN(lockupState.lockupAmount);
-            } else if (now.gte(vestingInformation.vestingEnd)) {
-              unvestedAmount = new BN(0);
-            } else {
-              const vestingTimeLeft = vestingInformation.vestingEnd.sub(now);
-              const vestingTotalTime = vestingInformation.vestingEnd.sub(vestingInformation.vestingStart);
-              unvestedAmount = new BN(lockupState.lockupAmount).mul(vestingTimeLeft).div(vestingTotalTime);
-            }
-          } else {
-            lockupState.vestingInformation = null;
-          }
-        }
-      }
-
-
-      let currentBlock = await provider.block({finality: 'final'});
-
-      const saturatingSub = (a, b) => {
-        let res = a.sub(b);
-        return res.gte(new BN(0)) ? res : new BN(0);
-      };
-
-      let blockTimestamp = new BN(currentBlock.header.timestamp_nanosec); // !!! Never take `timestamp`, it is rounded
-      if (blockTimestamp.lt(lockupState.lockupTimestamp)) {
-        return saturatingSub(
-          lockupState.lockupAmount,
-          lockupState.terminationWithdrawnTokens
-        );
-      }
-
-
-      if (lockupState.vestingInformation) {
-        if (lockupState.vestingInformation.unvestedAmount) {
-          // was terminated
-          unvestedAmount = lockupState.vestingInformation.unvestedAmount;
-        } else if (lockupState.vestingInformation.start) {
-          // we have schedule
-          if (blockTimestamp.lt(lockupState.vestingInformation.cliff)) {
-            unvestedAmount = lockupState.lockupAmount;
-          } else if (blockTimestamp.gte(lockupState.vestingInformation.end)) {
-            unvestedAmount = new BN(0);
-          } else {
-            let timeLeft = lockupState.vestingInformation.end.sub(blockTimestamp);
-            let totalTime = lockupState.vestingInformation.end.sub(
-              lockupState.vestingInformation.start
-            );
-            unvestedAmount = lockupState.lockupAmount.mul(timeLeft).div(totalTime);
-          }
-        }
-      }
-      if (unvestedAmount === undefined) {
-        unvestedAmount = new BN(0);
-      }
-
-      if (lockupReleaseStartTimestamp.lte(new BN(now.toString()))) {
-        if (releaseComplete) {
-          lockedAmount = new BN(0);
-        } else {
-          if (lockupState.releaseDuration) {
-            lockedAmount = (new BN(lockupState.lockupAmount)
-                .mul(timeLeft)
-                .div(duration)
-            );
-            lockedAmount = BN.max(
-              lockedAmount.sub(new BN(lockupState.terminationWithdrawnTokens)),
-              unvestedAmount,
-            )
-          } else {
-            lockedAmount = new BN(lockupState.lockupAmount).sub(new BN(lockupState.terminationWithdrawnTokens));
-          }
-        }
-      } else {
-        lockedAmount = new BN(lockupState.lockupAmount).sub(new BN(lockupState.terminationWithdrawnTokens));
-      }
-
-      if (!lockupState.releaseDuration) {
-        lockupState.releaseDuration = "0";
-      }
-
+    if (lockupState) {
+      lockupReleaseStartTimestamp = getStartLockupTimestamp(lockupState);
+      lockedAmount = await getLockedTokenAmount(lockupState);
+      lockupState.releaseDuration = lockupState.releaseDuration.div(new BN("1000000000"))
+        .divn(60)
+        .divn(60)
+        .divn(24)
+        .toString(10);
+      //lockupState.vestingInformation = formatVestingInfo(lockupState.vestingInformation);
     }
   } catch (error) {
-    console.log(error);
-    if (accountId.length < 64) {
-      accountId = `${accountId} doesn't exist`;
-    }
-    ownerAccountBalance = 0;
-    //lockupAccountBalance = 0;
+    console.error(error);
   }
+  console.log(lockupState);
 
   let result = {}
 
@@ -375,8 +341,3 @@ export async function viewLookupNew(inputAccountId) {
   result.lockupReleaseStartDate = new Date(lockupReleaseStartTimestamp.divn(1000000).toNumber());
   return result;
 }
-
-
-
-
-

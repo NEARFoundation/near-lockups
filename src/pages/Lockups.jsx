@@ -6,32 +6,30 @@ import {
   Card,
   CardActions,
   CardContent,
-  Container,
-  Grid,
-  makeStyles,
-  InputAdornment,
-  Typography,
-  Icon,
   CircularProgress,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
+  Collapse,
+  Container,
   Dialog,
-  DialogTitle,
+  DialogActions,
   DialogContent,
   DialogContentText,
-  DialogActions,
+  DialogTitle,
   Divider,
-  Link,
+  FormControl,
   FormControlLabel,
-  Switch, Collapse, IconButton,
+  Grid,
+  Icon,
+  IconButton,
+  InputAdornment,
+  InputLabel,
+  Link,
+  makeStyles,
+  MenuItem,
+  Select,
+  Switch, TextField,
+  Typography,
 } from "@material-ui/core";
-import {
-  MuiPickersUtilsProvider,
-  KeyboardDatePicker,
-} from '@material-ui/pickers';
+import {KeyboardDatePicker, MuiPickersUtilsProvider,} from '@material-ui/pickers';
 import {blue} from '@material-ui/core/colors';
 import DateFnsUtils from '@date-io/date-fns';
 import {useTheme} from '@material-ui/core/styles';
@@ -39,21 +37,18 @@ import useMediaQuery from '@material-ui/core/useMediaQuery';
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import CssBaseline from "@material-ui/core/CssBaseline";
-import {TextValidator, ValidatorForm, SelectValidator} from 'react-material-ui-form-validator';
+import {SelectValidator, TextValidator, ValidatorForm} from 'react-material-ui-form-validator';
 import {DataGrid, GridToolbarContainer, GridToolbarExport,} from '@material-ui/data-grid';
 import LockupData from "../components/LockupData";
 
 import * as nearApi from "near-api-js";
+import {createLedgerU2FClient} from '../utils/ledger.js'
+import {encode, decode} from 'bs58';
+
 import getConfig from "../config";
-import {
-  accountToLockup,
-  numberFormatted,
-  dateToNs,
-  truncate,
-  viewLookup, viewLookupOld, viewLookupNew, timestampToReadable
-} from '../utils/funcs'
+import {accountToLockup, dateToNs, numberFormatted, truncate} from '../utils/funcs'
 import {Decimal} from 'decimal.js';
-import {useGlobalState, useGlobalMutation} from '../utils/container'
+import {useGlobalMutation, useGlobalState} from '../utils/container'
 import {Alert, AlertTitle} from "@material-ui/lab";
 import CloseIcon from '@material-ui/icons/Close';
 import ReactJson from 'react-json-view'
@@ -160,11 +155,10 @@ const ViewLockups = () => {
 
   return (
     <>
-      <Card className={classes.card} variant="outlined">
+      <Card className={classes.card} variant="outlined" style={{padding: 10}}>
         <Typography align="center" variant="h5" style={{marginTop: 10}}>
           Recently created
         </Typography>
-        <Divider light/>
         <div style={{height: 400, width: '100%'}}>
           <DataGrid rows={rows} columns={columns}
                     components={{
@@ -175,30 +169,246 @@ const ViewLockups = () => {
                     disableSelectionOnClick
           />
         </div>
-        <CardContent>
-          <Divider light/>
-        </CardContent>
-        <CardActions>
-          <Grid container spacing={1}>
-            <Grid item xs={12} md={7}>
-              <Button
-                fullWidth
-                variant="contained"
-                color="grey"
-                type="submit"
-              >Email Lockup owners</Button>
-            </Grid>
-          </Grid>
-        </CardActions>
       </Card>
       {showLockupData ? <LockupData lockup={lockup} onClose={onClose}/> : null}
     </>
   )
 }
 
+/*
+const LedgerAccess = (props) => {
+  const stateCtx = useGlobalState();
+  const mutationCtx = useGlobalMutation();
+
+  const {handleDisableLedgerSign} = props;
+  const useStyles = makeStyles((theme) => ({
+    listRoot: {
+      width: '100%',
+      maxWidth: 360,
+      backgroundColor: theme.palette.background.paper,
+    },
+    card: {
+      width: '100%',
+    },
+    cardHeader: {
+      padding: theme.spacing(1, 2),
+    },
+    formControl: {
+      margin: theme.spacing(1),
+      minWidth: 140,
+    },
+
+  }));
+  const classes = useStyles();
+
+
+  const [ledgerAccountValidator, setLedgerAccountValidator] = useState(false);
+  const [ledgerPath, setLedgerPath] = useState(stateCtx.config.ledgerKeys && stateCtx.config.ledgerKeys.path ? stateCtx.config.ledgerKeys.path : "44'/397'/0'/0'/1'");
+  const [ledgerAccount, setLedgerAccount] = useState(stateCtx.config.ledgerKeys && stateCtx.config.ledgerKeys.account ? stateCtx.config.ledgerKeys.account : "");
+  const [ledgerError, setLedgerError] = useState(false);
+  const [ledgerErrorCode, setLedgerErrorCode] = useState(null);
+  const [dialogOpen, setDialogOpen] = useState(true);
+  const [disableConnectButton, setDisableConnectButton] = useState(false);
+
+
+  async function addPath(path) {
+    const client = await createLedgerU2FClient();
+    try {
+      let publicKey = await client.getPublicKey(path);
+      setDialogOpen(false);
+      return encode(Buffer.from(publicKey));
+    } catch (error) {
+      console.log(error);
+      setDialogOpen(true);
+      setLedgerErrorCode(error)
+      client.transport.close();
+      return false;
+    }
+  }
+
+  const handleDialogOpen = () => {
+    setDialogOpen(false);
+  }
+
+  const handleChange = (event) => {
+    if (event.target.name === "ledgerPath") {
+      setLedgerPath(event.target.value)
+    }
+    if (event.target.name === "ledgerAccount") {
+      setLedgerAccount(event.target.value)
+    }
+
+  }
+
+
+  const handleSubmit = () => {
+    addPath(ledgerPath).then((r) => {
+      if (r === false) {
+        setLedgerError(true);
+        return false;
+      }
+      new nearApi.Account(connection, ledgerAccount).getAccessKeys().then((k) => {
+        console.log(k);
+        let match = true;
+
+        let result = k.filter(obj => {
+          return obj.public_key === 'ed25519:' + r
+        })
+        console.log(result);
+
+
+        if (result.length !== 0) {
+          mutationCtx.updateConfig({
+            ledgerKeys: {
+              key: r,
+              path: ledgerPath,
+              account: ledgerAccount
+            },
+          })
+          setDisableConnectButton(true);
+          handleDisableLedgerSign(false)
+        } else {
+          setLedgerErrorCode('no matching keys found for this account');
+          setDialogOpen(true)
+          setLedgerError(true)
+        }
+
+      }).catch((e) => {
+        console.log(e)
+      })
+
+    }).catch((error) => {
+      console.log(error)
+    })
+
+  }
+
+
+  const ledgerAccountValidatorListener = (result) => {
+    setLedgerAccountValidator(result)
+  }
+
+
+  return (
+    <>
+      <ValidatorForm
+        onSubmit={handleSubmit}
+        onError={errors => console.log(errors)}
+      >
+        <Card className={classes.card} variant="outlined">
+          <Typography align="center" variant="h5" style={{marginTop: 10}}>
+            Use multisig
+          </Typography>
+          <Divider light/>
+          <CardContent>
+            <Grid container spacing={1}>
+              <Grid item xs={12}>
+                <TextValidator
+                  className={classes.card}
+                  id="ledgerAccount"
+                  label="Enter funding account"
+                  value={ledgerAccount}
+                  variant="outlined"
+                  onChange={handleChange}
+                  name="ledgerAccount"
+                  validators={['required']}
+                  validatorListener={ledgerAccountValidatorListener}
+                  errorMessages={['this field is required']}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <SelectValidator
+                  variant="outlined"
+                  className={classes.card}
+                  id="ledgerPath"
+                  name="ledgerPath"
+                  label="Ledger Path"
+                  value={ledgerPath}
+                  onChange={handleChange}
+                  SelectProps={{
+                    native: false
+                  }}
+                >
+                  <MenuItem selected value={ledgerPath}>44'/397'/0'/0'/1'</MenuItem>
+                  <MenuItem value={"44'/397'/0'/0'/2'"}>44'/397'/0'/0'/2'</MenuItem>
+                  <MenuItem value={"44'/397'/0'/0'/3'"}>44'/397'/0'/0'/3'</MenuItem>
+                  <MenuItem value={"44'/397'/0'/0'/4'"}>44'/397'/0'/0'/4'</MenuItem>
+                  <MenuItem value={"44'/397'/0'/0'/5'"}>44'/397'/0'/0'/5'</MenuItem>
+                  <MenuItem value={"44'/397'/0'/0'/6'"}>44'/397'/0'/0'/6'</MenuItem>
+                  <MenuItem value={"44'/397'/0'/0'/7'"}>44'/397'/0'/0'/7'</MenuItem>
+                  <MenuItem value={"44'/397'/0'/0'/8'"}>44'/397'/0'/0'/8'</MenuItem>
+                </SelectValidator>
+              </Grid>
+            </Grid>
+            <Grid container justify="flex-end" spacing={2} style={{marginTop: 20}}>
+              <Button
+                variant="contained"
+                color="primary"
+                type="submit"
+                disabled={disableConnectButton}
+              >Connect Ledger</Button>
+            </Grid>
+          </CardContent>
+        </Card>
+      </ValidatorForm>
+      {ledgerError ?
+        <Dialog
+          onClose={handleDialogOpen}
+          open={dialogOpen}
+          aria-labelledby="lockup-data"
+        >
+          <DialogTitle style={{wordBreak: "break-word"}} id="lockup-data">
+            <span style={{color: 'red'}}>Attention</span>
+          </DialogTitle>
+          <DialogContent>
+            {!ledgerErrorCode ?
+              <DialogContentText className="black-text">
+                Please connect the Ledger device, enter pin, open NEAR app, and repeat again.
+              </DialogContentText> : null}
+
+            {ledgerErrorCode.toString().includes('The device is already open') ?
+              <DialogContentText className="black-text">
+                The device is already open
+              </DialogContentText> : null}
+
+            {ledgerErrorCode.toString().includes('navigator.hid is not supported') ?
+              <DialogContentText className="red-text">
+                <b>Navigator.hid is not supported, please use another browser</b>
+              </DialogContentText> : null}
+
+            {ledgerErrorCode.toString().includes('no matching keys found for this account') ?
+              <DialogContentText className="red-text">
+                <b>No matching keys found for this account, please select another account</b>
+              </DialogContentText> : null}
+
+            {ledgerErrorCode.toString().includes('UNKNOWN_ERROR') ?
+              <DialogContentText className="red-text" align="center">
+                Unknown error occurred, please re-connect the Ledger device, enter the pin, open NEAR app, and repeat
+                again.
+                <br/><br/>
+                <Divider/>
+                <br/>
+                {ledgerErrorCode.toString()}
+              </DialogContentText> : null}
+
+
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleDialogOpen} autoFocus>
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+        : null}
+    </>
+  )
+}
+*/
+
 const CallbackDialog = () => {
   const stateCtx = useGlobalState();
   const mutationCtx = useGlobalMutation();
+
   const router = useRouter();
   const [open, setOpen] = useState(true);
   const [lockup, setLockup] = useState(null);
@@ -270,6 +480,7 @@ const CallbackDialog = () => {
                 <div>
                   View <a target="_blank" rel="nofollow"
                           href={nearConfig.explorerUrl + "/transactions/" + uriString["transactionHashes"]}>transaction</a>
+                  <pre>TX Hash: {uriString["transactionHashes"]}</pre>
                 </div>
                 : null}
             </>
@@ -285,11 +496,6 @@ const CallbackDialog = () => {
         </DialogContentText>
       </DialogContent>
       <DialogActions>
-        {lockup ?
-          <Button color="primary">
-            Email User Now
-          </Button>
-          : null}
         {lockup ?
           <Button onClick={handleCloseSuccess} color="primary" autoFocus>
             Save
@@ -307,6 +513,9 @@ const CallbackDialog = () => {
 
 
 const Lockups = () => {
+    const stateCtx = useGlobalState();
+    const mutationCtx = useGlobalMutation();
+
     const useStyles = makeStyles((theme) => ({
       root: {
         display: 'flex',
@@ -350,9 +559,6 @@ const Lockups = () => {
     }));
     const classes = useStyles();
 
-    const stateCtx = useGlobalState();
-    const mutationCtx = useGlobalMutation();
-    const router = useRouter();
     const [showSpinner, setShowSpinner] = useState(false);
     const [vestingStartTimestampDate, setVestingStartTimestampDate] = useState(null);
     const [vestingCliffTimestampDate, setVestingCliffTimestampDate] = useState(null);
@@ -362,9 +568,56 @@ const Lockups = () => {
     const [lockupStartDate, setLockupStartDate] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [checkedContractData, setCheckedContractData] = useState(false);
+    const [checkedUseMultisig, setCheckedUseMultisig] = useState(stateCtx.config.useMultisig);
+
+
+    const [ledgerAccountValidator, setLedgerAccountValidator] = useState(false);
+    const [ledgerPath, setLedgerPath] = useState(stateCtx.config.ledgerKeys && stateCtx.config.ledgerKeys.path ? stateCtx.config.ledgerKeys.path : "44'/397'/0'/0'/1'");
+    const [ledgerKey, setLedgerKey] = useState(stateCtx.config.ledgerKeys && stateCtx.config.ledgerKeys.key ? stateCtx.config.ledgerKeys.key : "");
+    const [ledgerAccount, setLedgerAccount] = useState(stateCtx.config.ledgerKeys && stateCtx.config.ledgerKeys.account ? stateCtx.config.ledgerKeys.account : "");
+    const [ledgerError, setLedgerError] = useState(false);
+    const [ledgerErrorCode, setLedgerErrorCode] = useState("");
+    const [dialogOpen, setDialogOpen] = useState(true);
+    const [ledgerDialogOpen, setLedgerDialogOpen] = useState(false);
+    const [ledgerDialogMessage, setLedgerDialogMessage] = useState("");
+    const [disableLedgerButton, setDisableLedgerButton] = useState(false);
+    const [ledgerSign, setLedgerSign] = useState(null);
+    const [addFundingAccount, setAddFundingAccount] = useState(null);
+    const [signWithWallet, setSignWithWallet] = useState(null);
+    const [disableAddFundingAccount, setDisableAddFundingAccount] = useState(false);
+
+    const handleDialogOpen = () => {
+      setDialogOpen(false);
+    }
+
+    const handleLedgerDialogOpen = () => {
+      setLedgerDialogOpen(false);
+    }
+
+    const handleLedgerChange = (event) => {
+      setDisableLedgerButton(true)
+      if (event.target.name === "ledgerPath") {
+        setLedgerPath(event.target.value)
+      }
+      if (event.target.name === "ledgerAccount") {
+        setLedgerAccount(event.target.value)
+      }
+    }
+
+    const ledgerAccountValidatorListener = (result) => {
+      setLedgerAccountValidator(result)
+    }
 
     const handleShowContractData = () => {
       setCheckedContractData((prev) => !prev);
+    };
+
+    const handleShowUseMultisig = () => {
+      setCheckedUseMultisig((prev) => !prev);
+      mutationCtx.updateConfig({
+        useMultisig: !stateCtx.config.useMultisig
+      })
+      setDisableAddFundingAccount(false)
     };
 
 
@@ -411,43 +664,210 @@ const Lockups = () => {
       }
     }, []);
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (e) => {
+      e.preventDefault();
 
-      mutationCtx.updateConfig({
-        sentTx: {
-          lockup: accountToLockup(nearConfig.lockupAccount, state.ownerAccountId),
-          owner: state.ownerAccountId
-        },
-      });
 
-      try {
-        setShowSpinner(true);
-        const amount = nearApi.utils.format.parseNearAmount(state.amount);
-        const releaseDuration = state.releaseDuration !== null ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
-        const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
+      const amount = nearApi.utils.format.parseNearAmount(state.amount);
+      const releaseDuration = state.releaseDuration !== null ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
+      const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
 
-        await window.contract.create({
-            owner_account_id: state.ownerAccountId,
-            lockup_duration: "0",
-            lockup_timestamp: lockupTimestamp,
-            release_duration: releaseDuration,
-            vesting_schedule: hideVesting ? null : {
-              VestingSchedule: {
-                start_timestamp: vestingStartTimestampDate ? dateToNs(vestingStartTimestampDate) : null,
-                cliff_timestamp: vestingCliffTimestampDate ? dateToNs(vestingCliffTimestampDate) : null,
-                end_timestamp: vestingEndTimestampDate ? dateToNs(vestingEndTimestampDate) : null,
-              }
-            },
-          },
-          new Decimal(lockupGas).toString(), amount,
-        )
-      } catch (e) {
-        console.log(e);
-        //setShowError(e);
-      } finally {
-        setShowSpinner(false);
+      async function addPath(path, client) {
+        try {
+          let publicKey = await client.getPublicKey(path);
+          setDialogOpen(false);
+          return encode(Buffer.from(publicKey));
+        } catch (error) {
+          console.log(error);
+          setDialogOpen(true);
+          setLedgerErrorCode(error)
+          client.transport.close();
+          return false;
+        }
       }
 
+
+      if (addFundingAccount) {
+        const client = await createLedgerU2FClient();
+        setLedgerDialogMessage("Please approve Ledger public key");
+        setLedgerDialogOpen(true);
+        addPath(ledgerPath, client).then((r) => {
+          if (r === false) {
+            setLedgerError(true);
+            setLedgerDialogOpen(false);
+            setDisableLedgerButton(false);
+            return false;
+          }
+          new nearApi.Account(connection, ledgerAccount).getAccessKeys().then((k) => {
+            let result = k.filter(obj => {
+              return obj.public_key === 'ed25519:' + r
+            })
+            if (result.length !== 0) {
+              setLedgerKey(r);
+              mutationCtx.updateConfig({
+                ledgerKeys: {
+                  key: r,
+                  path: ledgerPath,
+                  account: ledgerAccount
+                },
+              })
+              setLedgerDialogOpen(false);
+              setDisableAddFundingAccount(true);
+              setDisableLedgerButton(false);
+            } else {
+              setLedgerErrorCode('no matching keys found for this account');
+              setDialogOpen(true)
+              setLedgerDialogOpen(false);
+              setLedgerError(true)
+              client.transport.close();
+            }
+          }).catch((e) => {
+            console.log(e)
+          })
+        }).catch((error) => {
+          console.log(error)
+        })
+
+      }
+
+      if (ledgerSign) {
+        const client = await createLedgerU2FClient();
+        const args = {
+          owner_account_id: state.ownerAccountId,
+          lockup_duration: "0",
+          lockup_timestamp: lockupTimestamp,
+          release_duration: releaseDuration,
+          vesting_schedule: hideVesting ? null : {
+            VestingSchedule: {
+              start_timestamp: vestingStartTimestampDate ? dateToNs(vestingStartTimestampDate) : null,
+              cliff_timestamp: vestingCliffTimestampDate ? dateToNs(vestingCliffTimestampDate) : null,
+              end_timestamp: vestingEndTimestampDate ? dateToNs(vestingEndTimestampDate) : null,
+            }
+          },
+        };
+
+        const publicKey = nearApi.utils.PublicKey.fromString(ledgerKey);
+        const near = await nearApi.connect({
+          nodeUrl: nearConfig.nodeUrl,
+          networkId: nearConfig.networkId,
+          deps: {},
+          signer: {
+            async getPublicKey() {
+              return publicKey;
+            },
+            async signMessage(message) {
+              const signature = await client.sign(message, ledgerPath);
+              return {signature, publicKey};
+            }
+          },
+        });
+        let contract = await near.account(stateCtx.config.ledgerKeys.account);
+        setDisableLedgerButton(true);
+        setLedgerDialogOpen(true);
+        setLedgerDialogMessage("Please confirm Ledger public key: " + publicKey);
+        addPath(ledgerPath, client).then((r) => {
+          if (r === false) {
+            setLedgerError(true);
+            setLedgerDialogOpen(false);
+            setDisableLedgerButton(false);
+            return false;
+          }
+          new nearApi.Account(connection, ledgerAccount).getAccessKeys().then((k) => {
+            let result = k.filter(obj => {
+              return obj.public_key === 'ed25519:' + r
+            })
+            console.log(result);
+
+            if (result.length !== 0) {
+              setLedgerKey(r);
+              mutationCtx.updateConfig({
+                ledgerKeys: {
+                  key: r,
+                  path: ledgerPath,
+                  account: ledgerAccount
+                },
+              })
+              setLedgerDialogMessage("Please confirm transaction on the Ledger device");
+              contract.functionCall(ledgerAccount, 'add_request', {
+                "request": {
+                  "receiver_id": "lockup.devnet",
+                  "actions": [{
+                    "type": "FunctionCall",
+                    "method_name": "create",
+                    "args": btoa(JSON.stringify(args ? args : {})),
+                    "deposit": amount,
+                    "gas": "280000000000000"
+                  }]
+                }
+              }).then((r) => {
+                console.log(r);
+                setDisableLedgerButton(false);
+                setLedgerDialogMessage(r.status ? "Lockup created, please notify key holders to confirm request #" + atob(r.status.SuccessValue) + " and transaction hash: " + r.transaction.hash : "");
+                //setLedgerDialogOpen(false);
+                client.transport.close();
+              }).catch((e) => {
+                console.log(e)
+                setLedgerError(true);
+                setLedgerErrorCode(e)
+                setDialogOpen(true)
+                setDisableLedgerButton(false);
+                setLedgerDialogOpen(false);
+                client.transport.close();
+              })
+            } else {
+              setLedgerErrorCode('no matching keys found for this account');
+              setDialogOpen(true)
+              setLedgerError(true)
+              client.transport.close();
+            }
+
+          }).catch((e) => {
+            console.log(e)
+          })
+
+        }).catch((error) => {
+          console.log(error)
+        })
+
+      }
+
+      if (signWithWallet) {
+        mutationCtx.updateConfig({
+          sentTx: {
+            lockup: accountToLockup(nearConfig.lockupAccount, state.ownerAccountId),
+            owner: state.ownerAccountId
+          },
+        });
+
+        try {
+          setShowSpinner(true);
+          const releaseDuration = state.releaseDuration !== null ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
+          const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
+
+          await window.contract.create({
+              owner_account_id: state.ownerAccountId,
+              lockup_duration: "0",
+              lockup_timestamp: lockupTimestamp,
+              release_duration: releaseDuration,
+              vesting_schedule: hideVesting ? null : {
+                VestingSchedule: {
+                  start_timestamp: vestingStartTimestampDate ? dateToNs(vestingStartTimestampDate) : null,
+                  cliff_timestamp: vestingCliffTimestampDate ? dateToNs(vestingCliffTimestampDate) : null,
+                  end_timestamp: vestingEndTimestampDate ? dateToNs(vestingEndTimestampDate) : null,
+                }
+              },
+            },
+            new Decimal(lockupGas).toString(), amount,
+          )
+        } catch (e) {
+          console.log(e);
+          //setShowError(e);
+        } finally {
+          setShowSpinner(false);
+        }
+
+
+      }
     }
 
 
@@ -457,7 +877,7 @@ const Lockups = () => {
       const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
 
 
-      const jsonData = {
+      return {
         args:
           {
             owner_account_id: state.ownerAccountId,
@@ -474,10 +894,7 @@ const Lockups = () => {
           },
         gas: new Decimal(lockupGas).toString(),
         deposit: amount
-      }
-
-
-      return jsonData;
+      };
     }
 
     const checkLockup = (event) => {
@@ -854,11 +1271,17 @@ const Lockups = () => {
                       : null}
 
                     <Grid container justify="flex-start" spacing={1} style={{marginTop: 20, marginLeft: 6}}>
-                      <Grid item xs={12} md={12}>
+                      <Grid item xs={12} md={6}>
                         <FormControlLabel
                           disabled={!accountValidator || !amountValidator || !lockupValidator}
                           control={<Switch checked={checkedContractData} onChange={handleShowContractData}/>}
                           label="Show Raw Contract Data"
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <FormControlLabel
+                          control={<Switch checked={checkedUseMultisig} onChange={handleShowUseMultisig}/>}
+                          label="Use Multisig"
                         />
                       </Grid>
                       {checkedContractData ?
@@ -869,13 +1292,174 @@ const Lockups = () => {
                         </Grid>
                         : null}
                     </Grid>
+                    {checkedUseMultisig ?
+                      <Grid style={{marginBottom: 10, marginTop: 10}}>
+                        <Card className={classes.card} variant="outlined">
+                          <Typography align="center" variant="h5" style={{marginTop: 10}}>
+                            Use multisig
+                          </Typography>
+                          <Divider light/>
+                          <CardContent>
+                            <Grid container spacing={1}>
+                              <Grid item xs={12}>
+                                <TextValidator
+                                  className={classes.card}
+                                  id="ledgerAccount"
+                                  label="Enter funding account"
+                                  value={ledgerAccount}
+                                  variant="outlined"
+                                  onChange={handleLedgerChange}
+                                  name="ledgerAccount"
+                                  validators={['required']}
+                                  validatorListener={ledgerAccountValidatorListener}
+                                  errorMessages={['this field is required']}
+                                />
+                              </Grid>
+                              <Grid item xs={12}>
+                                <SelectValidator
+                                  variant="outlined"
+                                  className={classes.card}
+                                  id="ledgerPath"
+                                  name="ledgerPath"
+                                  label="Ledger Path"
+                                  value={ledgerPath}
+                                  onChange={handleLedgerChange}
+                                  SelectProps={{
+                                    native: false
+                                  }}
+                                >
+                                  <MenuItem selected value={"44'/397'/0'/0'/1'"}>44'/397'/0'/0'/1' - Default</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/2'"}>44'/397'/0'/0'/2'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/3'"}>44'/397'/0'/0'/3'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/4'"}>44'/397'/0'/0'/4'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/5'"}>44'/397'/0'/0'/5'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/6'"}>44'/397'/0'/0'/6'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/7'"}>44'/397'/0'/0'/7'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/8'"}>44'/397'/0'/0'/8'</MenuItem>
+                                </SelectValidator>
+                              </Grid>
+                              <Grid item xs={12}>
+                                <TextField variant="outlined" label="Ledger Public Key" disabled={true} fullWidth
+                                           value={ledgerKey}/>
+                              </Grid>
+                            </Grid>
+                          </CardContent>
+                        </Card>
+                        {ledgerError ?
+                          <Dialog
+                            onClose={handleDialogOpen}
+                            open={dialogOpen}
+                            aria-labelledby="lockup-data"
+                          >
+                            <DialogTitle style={{wordBreak: "break-word"}} id="lockup-data">
+                              <span style={{color: 'red'}}>Attention</span>
+                            </DialogTitle>
+                            <DialogContent>
+                              {!ledgerErrorCode ?
+                                <DialogContentText className="black-text">
+                                  Please connect the Ledger device, enter pin, open NEAR app, and repeat again.
+                                </DialogContentText> : null}
+
+                              {ledgerErrorCode.toString().includes('The device is already open') ?
+                                <DialogContentText className="black-text">
+                                  The device is already open
+                                </DialogContentText> : null}
+
+                              {ledgerErrorCode.toString().includes('navigator.hid is not supported') ?
+                                <DialogContentText className="red-text">
+                                  <b>Navigator.hid is not supported, please use another browser</b>
+                                </DialogContentText> : null}
+
+                              {ledgerErrorCode.toString().includes('no matching keys found for this account') ?
+                                <DialogContentText className="red-text">
+                                  <b>No matching keys found for this account, please select another account</b>
+                                </DialogContentText> : null}
+
+                              {ledgerErrorCode.toString().includes('UNKNOWN_ERROR') ?
+                                <DialogContentText className="red-text" align="center">
+                                  Unknown error occurred, please re-connect the Ledger device, enter the pin, open NEAR
+                                  app,
+                                  and repeat
+                                  again.
+                                  <br/><br/>
+                                  <Divider/>
+                                  <br/>
+                                  {ledgerErrorCode.toString()}
+                                </DialogContentText> : null}
+
+                              <DialogContentText className="red-text" align="center">
+                                <Divider/>
+                                <br/>
+                                {ledgerErrorCode.toString()}
+                              </DialogContentText>
+
+
+                            </DialogContent>
+                            <DialogActions>
+                              <Button onClick={handleDialogOpen} autoFocus>
+                                Close
+                              </Button>
+                            </DialogActions>
+                          </Dialog>
+                          : null}
+                        {ledgerDialogOpen ?
+                          <Dialog
+                            open={ledgerDialogOpen}
+                            aria-labelledby="lockup-data"
+                          >
+                            <DialogTitle style={{wordBreak: "break-word"}} id="lockup-data">
+                              <span style={{color: 'green'}}>Signing with Ledger</span>
+                            </DialogTitle>
+                            <DialogContent>
+                              <DialogContentText className="red-text" align="center">
+                                <Divider/>
+                                <br/>
+                                {ledgerDialogMessage.toString()}
+                              </DialogContentText>
+                            </DialogContent>
+                            <DialogActions>
+                              <Button onClick={handleLedgerDialogOpen} autoFocus>
+                                Close
+                              </Button>
+                            </DialogActions>
+                          </Dialog>
+                          : null}
+                      </Grid>
+                      : null}
                     <Grid container justify="flex-end" spacing={2} style={{marginTop: 20}}>
-                      <Button
-                        variant="contained"
-                        color="primary" type="submit"
-                        endIcon={<Icon>send</Icon>}
-                        disabled={!window.walletConnection.isSignedIn()}
-                      >SIGN</Button>
+                      {checkedUseMultisig ?
+                        <>
+                          <Button
+                            style={{marginRight: 10}}
+                            variant="contained"
+                            color="primary" type="submit"
+                            disabled={disableAddFundingAccount}
+                            onClick={() => {
+                              setAddFundingAccount(true)
+                            }}
+                          >Add/Change Funding Account</Button>
+                          <Button
+                            style={{marginRight: 10}}
+                            variant="contained"
+                            color="primary" type="submit"
+                            disabled={disableLedgerButton || ledgerKey === ''}
+                            onClick={() => {
+                              setLedgerSign(true)
+                            }}
+                          >SIGN WITH LEDGER</Button>
+                        </>
+                        : null}
+                      {!checkedUseMultisig ?
+                        <Button
+                          variant="contained"
+                          color="primary" type="submit"
+                          endIcon={<Icon>send</Icon>}
+                          disabled={!window.walletConnection.isSignedIn()}
+                          onClick={() => {
+                            setSignWithWallet(true)
+                          }}
+                        >SIGN WITH WALLET</Button>
+                        : null}
                       {showSpinner && <CircularProgress size={48} className={classes.buttonProgress}/>}
                     </Grid>
                   </ValidatorForm>
