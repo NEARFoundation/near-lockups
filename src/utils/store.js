@@ -18,6 +18,7 @@ const defaultState = {
     sentTx: null,
     createdLockups: [],
     ledgerKeys: [],
+    useMultisig: false,
     ...readDefaultState(),
   }
 }

@@ -155,11 +155,10 @@ const ViewLockups = () => {
 
   return (
     <>
-      <Card className={classes.card} variant="outlined">
+      <Card className={classes.card} variant="outlined" style={{padding: 10}}>
         <Typography align="center" variant="h5" style={{marginTop: 10}}>
           Recently created
         </Typography>
-        <Divider light/>
         <div style={{height: 400, width: '100%'}}>
           <DataGrid rows={rows} columns={columns}
                     components={{
@@ -170,21 +169,6 @@ const ViewLockups = () => {
                     disableSelectionOnClick
           />
         </div>
-        <CardContent>
-          <Divider light/>
-        </CardContent>
-        <CardActions>
-          <Grid container spacing={1}>
-            <Grid item xs={12} md={7}>
-              <Button
-                fullWidth
-                variant="contained"
-                color="grey"
-                type="submit"
-              >Email Lockup owners</Button>
-            </Grid>
-          </Grid>
-        </CardActions>
       </Card>
       {showLockupData ? <LockupData lockup={lockup} onClose={onClose}/> : null}
     </>
@@ -513,11 +497,6 @@ const CallbackDialog = () => {
       </DialogContent>
       <DialogActions>
         {lockup ?
-          <Button color="primary">
-            Email User Now
-          </Button>
-          : null}
-        {lockup ?
           <Button onClick={handleCloseSuccess} color="primary" autoFocus>
             Save
           </Button>
@@ -589,6 +568,7 @@ const Lockups = () => {
     const [lockupStartDate, setLockupStartDate] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [checkedContractData, setCheckedContractData] = useState(false);
+    const [checkedUseMultisig, setCheckedUseMultisig] = useState(stateCtx.config.useMultisig);
 
 
     const [ledgerAccountValidator, setLedgerAccountValidator] = useState(false);
@@ -630,6 +610,14 @@ const Lockups = () => {
 
     const handleShowContractData = () => {
       setCheckedContractData((prev) => !prev);
+    };
+
+    const handleShowUseMultisig = () => {
+      setCheckedUseMultisig((prev) => !prev);
+      mutationCtx.updateConfig({
+        useMultisig: !stateCtx.config.useMultisig
+      })
+      setDisableAddFundingAccount(false)
     };
 
 
@@ -684,8 +672,6 @@ const Lockups = () => {
       const releaseDuration = state.releaseDuration !== null ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
       const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
 
-      const client = await createLedgerU2FClient();
-
       async function addPath(path, client) {
         try {
           let publicKey = await client.getPublicKey(path);
@@ -700,7 +686,9 @@ const Lockups = () => {
         }
       }
 
+
       if (addFundingAccount) {
+        const client = await createLedgerU2FClient();
         setLedgerDialogMessage("Please approve Ledger public key");
         setLedgerDialogOpen(true);
         addPath(ledgerPath, client).then((r) => {
@@ -743,7 +731,7 @@ const Lockups = () => {
       }
 
       if (ledgerSign) {
-
+        const client = await createLedgerU2FClient();
         const args = {
           owner_account_id: state.ownerAccountId,
           lockup_duration: "0",
@@ -758,9 +746,7 @@ const Lockups = () => {
           },
         };
 
-
         const publicKey = nearApi.utils.PublicKey.fromString(ledgerKey);
-
         const near = await nearApi.connect({
           nodeUrl: nearConfig.nodeUrl,
           networkId: nearConfig.networkId,
@@ -1285,11 +1271,17 @@ const Lockups = () => {
                       : null}
 
                     <Grid container justify="flex-start" spacing={1} style={{marginTop: 20, marginLeft: 6}}>
-                      <Grid item xs={12} md={12}>
+                      <Grid item xs={12} md={6}>
                         <FormControlLabel
                           disabled={!accountValidator || !amountValidator || !lockupValidator}
                           control={<Switch checked={checkedContractData} onChange={handleShowContractData}/>}
                           label="Show Raw Contract Data"
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <FormControlLabel
+                          control={<Switch checked={checkedUseMultisig} onChange={handleShowUseMultisig}/>}
+                          label="Use Multisig"
                         />
                       </Grid>
                       {checkedContractData ?
@@ -1300,165 +1292,174 @@ const Lockups = () => {
                         </Grid>
                         : null}
                     </Grid>
-                    <Grid style={{marginBottom: 10}}>
-                      <Card className={classes.card} variant="outlined">
-                        <Typography align="center" variant="h5" style={{marginTop: 10}}>
-                          Use multisig
-                        </Typography>
-                        <Divider light/>
-                        <CardContent>
-                          <Grid container spacing={1}>
-                            <Grid item xs={12}>
-                              <TextValidator
-                                className={classes.card}
-                                id="ledgerAccount"
-                                label="Enter funding account"
-                                value={ledgerAccount}
-                                variant="outlined"
-                                onChange={handleLedgerChange}
-                                name="ledgerAccount"
-                                validators={['required']}
-                                validatorListener={ledgerAccountValidatorListener}
-                                errorMessages={['this field is required']}
-                              />
+                    {checkedUseMultisig ?
+                      <Grid style={{marginBottom: 10, marginTop: 10}}>
+                        <Card className={classes.card} variant="outlined">
+                          <Typography align="center" variant="h5" style={{marginTop: 10}}>
+                            Use multisig
+                          </Typography>
+                          <Divider light/>
+                          <CardContent>
+                            <Grid container spacing={1}>
+                              <Grid item xs={12}>
+                                <TextValidator
+                                  className={classes.card}
+                                  id="ledgerAccount"
+                                  label="Enter funding account"
+                                  value={ledgerAccount}
+                                  variant="outlined"
+                                  onChange={handleLedgerChange}
+                                  name="ledgerAccount"
+                                  validators={['required']}
+                                  validatorListener={ledgerAccountValidatorListener}
+                                  errorMessages={['this field is required']}
+                                />
+                              </Grid>
+                              <Grid item xs={12}>
+                                <SelectValidator
+                                  variant="outlined"
+                                  className={classes.card}
+                                  id="ledgerPath"
+                                  name="ledgerPath"
+                                  label="Ledger Path"
+                                  value={ledgerPath}
+                                  onChange={handleLedgerChange}
+                                  SelectProps={{
+                                    native: false
+                                  }}
+                                >
+                                  <MenuItem selected value={"44'/397'/0'/0'/1'"}>44'/397'/0'/0'/1' - Default</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/2'"}>44'/397'/0'/0'/2'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/3'"}>44'/397'/0'/0'/3'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/4'"}>44'/397'/0'/0'/4'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/5'"}>44'/397'/0'/0'/5'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/6'"}>44'/397'/0'/0'/6'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/7'"}>44'/397'/0'/0'/7'</MenuItem>
+                                  <MenuItem value={"44'/397'/0'/0'/8'"}>44'/397'/0'/0'/8'</MenuItem>
+                                </SelectValidator>
+                              </Grid>
+                              <Grid item xs={12}>
+                                <TextField variant="outlined" label="Ledger Public Key" disabled={true} fullWidth
+                                           value={ledgerKey}/>
+                              </Grid>
                             </Grid>
-                            <Grid item xs={12}>
-                              <SelectValidator
-                                variant="outlined"
-                                className={classes.card}
-                                id="ledgerPath"
-                                name="ledgerPath"
-                                label="Ledger Path"
-                                value={ledgerPath}
-                                onChange={handleLedgerChange}
-                                SelectProps={{
-                                  native: false
-                                }}
-                              >
-                                <MenuItem selected value={"44'/397'/0'/0'/1'"}>44'/397'/0'/0'/1' - Default</MenuItem>
-                                <MenuItem value={"44'/397'/0'/0'/2'"}>44'/397'/0'/0'/2'</MenuItem>
-                                <MenuItem value={"44'/397'/0'/0'/3'"}>44'/397'/0'/0'/3'</MenuItem>
-                                <MenuItem value={"44'/397'/0'/0'/4'"}>44'/397'/0'/0'/4'</MenuItem>
-                                <MenuItem value={"44'/397'/0'/0'/5'"}>44'/397'/0'/0'/5'</MenuItem>
-                                <MenuItem value={"44'/397'/0'/0'/6'"}>44'/397'/0'/0'/6'</MenuItem>
-                                <MenuItem value={"44'/397'/0'/0'/7'"}>44'/397'/0'/0'/7'</MenuItem>
-                                <MenuItem value={"44'/397'/0'/0'/8'"}>44'/397'/0'/0'/8'</MenuItem>
-                              </SelectValidator>
-                            </Grid>
-                            <Grid item xs={12}>
-                              <TextField variant="outlined" label="Ledger Public Key" disabled={true} fullWidth
-                                         value={ledgerKey}/>
-                            </Grid>
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                      {ledgerError ?
-                        <Dialog
-                          onClose={handleDialogOpen}
-                          open={dialogOpen}
-                          aria-labelledby="lockup-data"
-                        >
-                          <DialogTitle style={{wordBreak: "break-word"}} id="lockup-data">
-                            <span style={{color: 'red'}}>Attention</span>
-                          </DialogTitle>
-                          <DialogContent>
-                            {!ledgerErrorCode ?
-                              <DialogContentText className="black-text">
-                                Please connect the Ledger device, enter pin, open NEAR app, and repeat again.
-                              </DialogContentText> : null}
+                          </CardContent>
+                        </Card>
+                        {ledgerError ?
+                          <Dialog
+                            onClose={handleDialogOpen}
+                            open={dialogOpen}
+                            aria-labelledby="lockup-data"
+                          >
+                            <DialogTitle style={{wordBreak: "break-word"}} id="lockup-data">
+                              <span style={{color: 'red'}}>Attention</span>
+                            </DialogTitle>
+                            <DialogContent>
+                              {!ledgerErrorCode ?
+                                <DialogContentText className="black-text">
+                                  Please connect the Ledger device, enter pin, open NEAR app, and repeat again.
+                                </DialogContentText> : null}
 
-                            {ledgerErrorCode.toString().includes('The device is already open') ?
-                              <DialogContentText className="black-text">
-                                The device is already open
-                              </DialogContentText> : null}
+                              {ledgerErrorCode.toString().includes('The device is already open') ?
+                                <DialogContentText className="black-text">
+                                  The device is already open
+                                </DialogContentText> : null}
 
-                            {ledgerErrorCode.toString().includes('navigator.hid is not supported') ?
-                              <DialogContentText className="red-text">
-                                <b>Navigator.hid is not supported, please use another browser</b>
-                              </DialogContentText> : null}
+                              {ledgerErrorCode.toString().includes('navigator.hid is not supported') ?
+                                <DialogContentText className="red-text">
+                                  <b>Navigator.hid is not supported, please use another browser</b>
+                                </DialogContentText> : null}
 
-                            {ledgerErrorCode.toString().includes('no matching keys found for this account') ?
-                              <DialogContentText className="red-text">
-                                <b>No matching keys found for this account, please select another account</b>
-                              </DialogContentText> : null}
+                              {ledgerErrorCode.toString().includes('no matching keys found for this account') ?
+                                <DialogContentText className="red-text">
+                                  <b>No matching keys found for this account, please select another account</b>
+                                </DialogContentText> : null}
 
-                            {ledgerErrorCode.toString().includes('UNKNOWN_ERROR') ?
+                              {ledgerErrorCode.toString().includes('UNKNOWN_ERROR') ?
+                                <DialogContentText className="red-text" align="center">
+                                  Unknown error occurred, please re-connect the Ledger device, enter the pin, open NEAR
+                                  app,
+                                  and repeat
+                                  again.
+                                  <br/><br/>
+                                  <Divider/>
+                                  <br/>
+                                  {ledgerErrorCode.toString()}
+                                </DialogContentText> : null}
+
                               <DialogContentText className="red-text" align="center">
-                                Unknown error occurred, please re-connect the Ledger device, enter the pin, open NEAR app,
-                                and repeat
-                                again.
-                                <br/><br/>
                                 <Divider/>
                                 <br/>
                                 {ledgerErrorCode.toString()}
-                              </DialogContentText> : null}
-
-                            <DialogContentText className="red-text" align="center">
-                              <Divider/>
-                              <br/>
-                              {ledgerErrorCode.toString()}
-                            </DialogContentText>
+                              </DialogContentText>
 
 
-                          </DialogContent>
-                          <DialogActions>
-                            <Button onClick={handleDialogOpen} autoFocus>
-                              Close
-                            </Button>
-                          </DialogActions>
-                        </Dialog>
-                        : null}
-                      {ledgerDialogOpen ?
-                        <Dialog
-                          open={ledgerDialogOpen}
-                          aria-labelledby="lockup-data"
-                        >
-                          <DialogTitle style={{wordBreak: "break-word"}} id="lockup-data">
-                            <span style={{color: 'green'}}>Signing with Ledger</span>
-                          </DialogTitle>
-                          <DialogContent>
-                            <DialogContentText className="red-text" align="center">
-                              <Divider/>
-                              <br/>
-                              {ledgerDialogMessage.toString()}
-                            </DialogContentText>
-                          </DialogContent>
-                          <DialogActions>
-                            <Button onClick={handleLedgerDialogOpen} autoFocus>
-                              Close
-                            </Button>
-                          </DialogActions>
-                        </Dialog>
-                        : null}
-                    </Grid>
+                            </DialogContent>
+                            <DialogActions>
+                              <Button onClick={handleDialogOpen} autoFocus>
+                                Close
+                              </Button>
+                            </DialogActions>
+                          </Dialog>
+                          : null}
+                        {ledgerDialogOpen ?
+                          <Dialog
+                            open={ledgerDialogOpen}
+                            aria-labelledby="lockup-data"
+                          >
+                            <DialogTitle style={{wordBreak: "break-word"}} id="lockup-data">
+                              <span style={{color: 'green'}}>Signing with Ledger</span>
+                            </DialogTitle>
+                            <DialogContent>
+                              <DialogContentText className="red-text" align="center">
+                                <Divider/>
+                                <br/>
+                                {ledgerDialogMessage.toString()}
+                              </DialogContentText>
+                            </DialogContent>
+                            <DialogActions>
+                              <Button onClick={handleLedgerDialogOpen} autoFocus>
+                                Close
+                              </Button>
+                            </DialogActions>
+                          </Dialog>
+                          : null}
+                      </Grid>
+                      : null}
                     <Grid container justify="flex-end" spacing={2} style={{marginTop: 20}}>
-                      <Button
-                        style={{marginRight: 10}}
-                        variant="contained"
-                        color="primary" type="submit"
-                        disabled={disableAddFundingAccount}
-                        onClick={() => {
-                          setAddFundingAccount(true)
-                        }}
-                      >Add/Change Funding Account</Button>
-                      <Button
-                        style={{marginRight: 10}}
-                        variant="contained"
-                        color="primary" type="submit"
-                        disabled={disableLedgerButton || ledgerKey === ''}
-                        onClick={() => {
-                          setLedgerSign(true)
-                        }}
-                      >SIGN WITH LEDGER</Button>
-                      <Button
-                        variant="contained"
-                        color="primary" type="submit"
-                        endIcon={<Icon>send</Icon>}
-                        disabled={!window.walletConnection.isSignedIn()}
-                        onClick={() => {
-                          setSignWithWallet(true)
-                        }}
-                      >SIGN WITH WALLET</Button>
+                      {checkedUseMultisig ?
+                        <>
+                          <Button
+                            style={{marginRight: 10}}
+                            variant="contained"
+                            color="primary" type="submit"
+                            disabled={disableAddFundingAccount}
+                            onClick={() => {
+                              setAddFundingAccount(true)
+                            }}
+                          >Add/Change Funding Account</Button>
+                          <Button
+                            style={{marginRight: 10}}
+                            variant="contained"
+                            color="primary" type="submit"
+                            disabled={disableLedgerButton || ledgerKey === ''}
+                            onClick={() => {
+                              setLedgerSign(true)
+                            }}
+                          >SIGN WITH LEDGER</Button>
+                        </>
+                        : null}
+                      {!checkedUseMultisig ?
+                        <Button
+                          variant="contained"
+                          color="primary" type="submit"
+                          endIcon={<Icon>send</Icon>}
+                          disabled={!window.walletConnection.isSignedIn()}
+                          onClick={() => {
+                            setSignWithWallet(true)
+                          }}
+                        >SIGN WITH WALLET</Button>
+                        : null}
                       {showSpinner && <CircularProgress size={48} className={classes.buttonProgress}/>}
                     </Grid>
                   </ValidatorForm>

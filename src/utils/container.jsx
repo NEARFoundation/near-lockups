@@ -73,6 +73,7 @@ export const ContainerProvider = ({children}) => {
         sentTx: state.config.sentTx,
         createdLockups: state.config.createdLockups,
         ledgerKeys: state.config.ledgerKeys,
+        useMultisig: state.config.useMultisig,
       })
     )
   }, [state])
