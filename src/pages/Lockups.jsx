@@ -664,71 +664,25 @@ const Lockups = () => {
       }
     }, []);
 
+    async function addPath(path, client) {
+      try {
+        let publicKey = await client.getPublicKey(path);
+        setDialogOpen(false);
+        return encode(Buffer.from(publicKey));
+      } catch (error) {
+        console.log(error);
+        setDialogOpen(true);
+        setLedgerErrorCode(error)
+        client.transport.close();
+        return false;
+      }
+    }
+
     const handleSubmit = async (e) => {
       e.preventDefault();
-
-
       const amount = nearApi.utils.format.parseNearAmount(state.amount);
       const releaseDuration = state.releaseDuration !== null ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
       const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
-
-      async function addPath(path, client) {
-        try {
-          let publicKey = await client.getPublicKey(path);
-          setDialogOpen(false);
-          return encode(Buffer.from(publicKey));
-        } catch (error) {
-          console.log(error);
-          setDialogOpen(true);
-          setLedgerErrorCode(error)
-          client.transport.close();
-          return false;
-        }
-      }
-
-
-      if (addFundingAccount) {
-        const client = await createLedgerU2FClient();
-        setLedgerDialogMessage("Please approve Ledger public key");
-        setLedgerDialogOpen(true);
-        addPath(ledgerPath, client).then((r) => {
-          if (r === false) {
-            setLedgerError(true);
-            setLedgerDialogOpen(false);
-            setDisableLedgerButton(false);
-            return false;
-          }
-          new nearApi.Account(connection, ledgerAccount).getAccessKeys().then((k) => {
-            let result = k.filter(obj => {
-              return obj.public_key === 'ed25519:' + r
-            })
-            if (result.length !== 0) {
-              setLedgerKey(r);
-              mutationCtx.updateConfig({
-                ledgerKeys: {
-                  key: r,
-                  path: ledgerPath,
-                  account: ledgerAccount
-                },
-              })
-              setLedgerDialogOpen(false);
-              setDisableAddFundingAccount(true);
-              setDisableLedgerButton(false);
-            } else {
-              setLedgerErrorCode('no matching keys found for this account');
-              setDialogOpen(true)
-              setLedgerDialogOpen(false);
-              setLedgerError(true)
-              client.transport.close();
-            }
-          }).catch((e) => {
-            console.log(e)
-          })
-        }).catch((error) => {
-          console.log(error)
-        })
-
-      }
 
       if (ledgerSign) {
         const client = await createLedgerU2FClient();
@@ -790,7 +744,7 @@ const Lockups = () => {
               setLedgerDialogMessage("Please confirm transaction on the Ledger device");
               contract.functionCall(ledgerAccount, 'add_request', {
                 "request": {
-                  "receiver_id": "lockup.devnet",
+                  "receiver_id": nearConfig.contractName,
                   "actions": [{
                     "type": "FunctionCall",
                     "method_name": "create",
@@ -841,8 +795,6 @@ const Lockups = () => {
 
         try {
           setShowSpinner(true);
-          const releaseDuration = state.releaseDuration !== null ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
-          const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
 
           await window.contract.create({
               owner_account_id: state.ownerAccountId,
@@ -865,11 +817,57 @@ const Lockups = () => {
         } finally {
           setShowSpinner(false);
         }
+      }
 
+    }
+
+    const handleAddLedger = async (e) => {
+      e.preventDefault();
+
+      if (addFundingAccount) {
+        const client = await createLedgerU2FClient();
+        setLedgerDialogMessage("Please approve Ledger public key");
+        setLedgerDialogOpen(true);
+        addPath(ledgerPath, client).then((r) => {
+          if (r === false) {
+            setLedgerError(true);
+            setLedgerDialogOpen(false);
+            setDisableLedgerButton(false);
+            return false;
+          }
+          new nearApi.Account(connection, ledgerAccount).getAccessKeys().then((k) => {
+            let result = k.filter(obj => {
+              return obj.public_key === 'ed25519:' + r
+            })
+            if (result.length !== 0) {
+              setLedgerKey(r);
+              mutationCtx.updateConfig({
+                ledgerKeys: {
+                  key: r,
+                  path: ledgerPath,
+                  account: ledgerAccount
+                },
+              })
+              setLedgerDialogOpen(false);
+              setDisableAddFundingAccount(true);
+              setDisableLedgerButton(false);
+              location.reload();
+            } else {
+              setLedgerErrorCode('no matching keys found for this account');
+              setDialogOpen(true)
+              setLedgerDialogOpen(false);
+              setLedgerError(true)
+              client.transport.close();
+            }
+          }).catch((e) => {
+            console.log(e)
+          })
+        }).catch((error) => {
+          console.log(error)
+        })
 
       }
     }
-
 
     const dryRun = () => {
       const amount = nearApi.utils.format.parseNearAmount(state.amount);
@@ -1291,6 +1289,33 @@ const Lockups = () => {
                                      src={dryRun()}/>
                         </Grid>
                         : null}
+                      <Grid container justify="flex-end" style={{marginRight: 6}}>
+                        {checkedUseMultisig ?
+                          <>
+                            <Button
+                              style={{marginRight: 10}}
+                              variant="contained"
+                              color="primary" type="submit"
+                              disabled={disableLedgerButton || ledgerKey === ''}
+                              onClick={() => {
+                                setLedgerSign(true)
+                              }}
+                            >SIGN WITH LEDGER</Button>
+                          </>
+                          : null}
+                        {!checkedUseMultisig ?
+                          <Button
+                            variant="contained"
+                            color="primary" type="submit"
+                            endIcon={<Icon>send</Icon>}
+                            disabled={!window.walletConnection.isSignedIn()}
+                            onClick={() => {
+                              setSignWithWallet(true)
+                            }}
+                          >SIGN WITH WALLET</Button>
+                          : null}
+                        {showSpinner && <CircularProgress size={48} className={classes.buttonProgress}/>}
+                      </Grid>
                     </Grid>
                     {checkedUseMultisig ?
                       <Grid style={{marginBottom: 10, marginTop: 10}}>
@@ -1426,6 +1451,11 @@ const Lockups = () => {
                           : null}
                       </Grid>
                       : null}
+                  </ValidatorForm>
+                  <ValidatorForm
+                    onSubmit={handleAddLedger}
+                    onError={errors => console.log(errors)}
+                  >
                     <Grid container justify="flex-end" spacing={2} style={{marginTop: 20}}>
                       {checkedUseMultisig ?
                         <>
@@ -1438,29 +1468,8 @@ const Lockups = () => {
                               setAddFundingAccount(true)
                             }}
                           >Add/Change Funding Account</Button>
-                          <Button
-                            style={{marginRight: 10}}
-                            variant="contained"
-                            color="primary" type="submit"
-                            disabled={disableLedgerButton || ledgerKey === ''}
-                            onClick={() => {
-                              setLedgerSign(true)
-                            }}
-                          >SIGN WITH LEDGER</Button>
                         </>
                         : null}
-                      {!checkedUseMultisig ?
-                        <Button
-                          variant="contained"
-                          color="primary" type="submit"
-                          endIcon={<Icon>send</Icon>}
-                          disabled={!window.walletConnection.isSignedIn()}
-                          onClick={() => {
-                            setSignWithWallet(true)
-                          }}
-                        >SIGN WITH WALLET</Button>
-                        : null}
-                      {showSpinner && <CircularProgress size={48} className={classes.buttonProgress}/>}
                     </Grid>
                   </ValidatorForm>
                 </CardContent>
