@@ -1,6 +1,6 @@
 import {createClient} from 'near-ledger-js';
-//import TransportU2F from "@ledgerhq/hw-transport-webhid";
-import TransportU2F from "@ledgerhq/hw-transport-webusb";
+import TransportU2F from "@ledgerhq/hw-transport-webhid";
+//import TransportU2F from "@ledgerhq/hw-transport-webusb";
 
 async function createLedgerU2FTransport() {
   let transport = await TransportU2F.create();
