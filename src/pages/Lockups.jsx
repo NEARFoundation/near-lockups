@@ -1086,8 +1086,8 @@ const Lockups = () => {
                             value={vestingSchedule}
                             label="Vesting Schedule"
                           >
-                            <MenuItem value={0}>None</MenuItem>
-                            <MenuItem value={1}>Vesting Schedule</MenuItem>
+                            <MenuItem value={0}>None - Linear Release</MenuItem>
+                            <MenuItem value={1}>Vesting 1-year Cliff</MenuItem>
                           </Select>
                         </FormControl>
                       </Grid>
