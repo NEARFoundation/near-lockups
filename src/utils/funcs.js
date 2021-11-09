@@ -341,8 +341,3 @@ export async function viewLookupNew(inputAccountId) {
   result.lockupReleaseStartDate = new Date(lockupReleaseStartTimestamp.divn(1000000).toNumber());
   return result;
 }
-
-
-
-
-
