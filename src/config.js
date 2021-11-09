@@ -13,6 +13,7 @@ function getConfig(env) {
         helperUrl: 'https://helper.mainnet.near.org',
         explorerUrl: 'https://explorer.mainnet.near.org',
         lockupAccount: 'lockup.near',
+        multisigAccount: 'multi.sigs.near',
         masterAccount: 'near',
       }
     case 'development':
@@ -25,6 +26,7 @@ function getConfig(env) {
         helperUrl: 'https://helper.testnet.near.org',
         explorerUrl: 'https://explorer.testnet.near.org',
         lockupAccount: 'lockup.devnet',
+        multisigAccount: 'multisig.devnet',
         masterAccount: 'testnet',
       }
     case 'betanet':
@@ -36,6 +38,7 @@ function getConfig(env) {
         helperUrl: 'https://helper.betanet.near.org',
         explorerUrl: 'https://explorer.betanet.near.org',
         lockupAccount: 'lockup.devnet',
+        multisigAccount: 'multisig.devnet',
         masterAccount: 'testnet',
       }
     case 'local':

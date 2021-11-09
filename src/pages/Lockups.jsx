@@ -2,10 +2,11 @@ import React, {useEffect, useState} from "react";
 import {useParams} from "react-router-dom";
 
 import {
+  Avatar,
   Button,
   Card,
   CardActions,
-  CardContent,
+  CardContent, Chip,
   CircularProgress,
   Collapse,
   Container,
@@ -54,12 +55,14 @@ import CloseIcon from '@material-ui/icons/Close';
 import ReactJson from 'react-json-view'
 import useRouter from "../utils/use-router";
 import queryString from "query-string";
+import DoneIcon from "@material-ui/icons/Done";
 
 
 const lockupGas = "110000000000000";
 const nearConfig = getConfig(process.env.NODE_ENV || 'development')
 const provider = new nearApi.providers.JsonRpcProvider(nearConfig.nodeUrl);
 const connection = new nearApi.Connection(nearConfig.networkId, provider, {});
+
 
 async function accountExists(accountId) {
   try {
@@ -574,7 +577,8 @@ const Lockups = () => {
     const [ledgerAccountValidator, setLedgerAccountValidator] = useState(false);
     const [ledgerPath, setLedgerPath] = useState(stateCtx.config.ledgerKeys && stateCtx.config.ledgerKeys.path ? stateCtx.config.ledgerKeys.path : "44'/397'/0'/0'/1'");
     const [ledgerKey, setLedgerKey] = useState(stateCtx.config.ledgerKeys && stateCtx.config.ledgerKeys.key ? stateCtx.config.ledgerKeys.key : "");
-    const [ledgerAccount, setLedgerAccount] = useState(stateCtx.config.ledgerKeys && stateCtx.config.ledgerKeys.account ? stateCtx.config.ledgerKeys.account : "");
+    //const [ledgerAccount, setLedgerAccount] = useState(stateCtx.config.ledgerKeys && stateCtx.config.ledgerKeys.account ? stateCtx.config.ledgerKeys.account : "");
+    const [ledgerAccount, setLedgerAccount] = useState(nearConfig.multisigAccount);
     const [ledgerError, setLedgerError] = useState(false);
     const [ledgerErrorCode, setLedgerErrorCode] = useState("");
     const [dialogOpen, setDialogOpen] = useState(true);
@@ -584,6 +588,7 @@ const Lockups = () => {
     const [ledgerSign, setLedgerSign] = useState(null);
     const [addFundingAccount, setAddFundingAccount] = useState(null);
     const [signWithWallet, setSignWithWallet] = useState(null);
+    const [signMultisig, setSignMultisig] = useState(null);
     const [disableAddFundingAccount, setDisableAddFundingAccount] = useState(false);
 
     const handleDialogOpen = () => {
@@ -618,6 +623,7 @@ const Lockups = () => {
         useMultisig: !stateCtx.config.useMultisig
       })
       setDisableAddFundingAccount(false)
+      location.reload();
     };
 
 
@@ -819,6 +825,48 @@ const Lockups = () => {
         }
       }
 
+      if (signMultisig) {
+
+        try {
+          setShowSpinner(true);
+
+          const args = {
+            owner_account_id: state.ownerAccountId,
+            lockup_duration: "0",
+            lockup_timestamp: lockupTimestamp,
+            release_duration: releaseDuration,
+            vesting_schedule: hideVesting ? null : {
+              VestingSchedule: {
+                start_timestamp: vestingStartTimestampDate ? dateToNs(vestingStartTimestampDate) : null,
+                cliff_timestamp: vestingCliffTimestampDate ? dateToNs(vestingCliffTimestampDate) : null,
+                end_timestamp: vestingEndTimestampDate ? dateToNs(vestingEndTimestampDate) : null,
+              }
+            },
+          };
+
+          await window.contract.add_request(
+            {
+              request: {
+                receiver_id: nearConfig.contractName,
+                actions: [{
+                  type: "FunctionCall",
+                  method_name: "create",
+                  args: btoa(JSON.stringify(args ? args : {})),
+                  deposit: amount,
+                  gas: "280000000000000"
+                }]
+              }
+            },
+            new Decimal(lockupGas).toString(), 0,
+          )
+        } catch (e) {
+          console.log(e);
+          //setShowError(e);
+        } finally {
+          setShowSpinner(false);
+        }
+      }
+
     }
 
     const handleAddLedger = async (e) => {
@@ -975,8 +1023,16 @@ const Lockups = () => {
       setVestingStartTimestampDate(event)
       setVestingCliffTimestampDate(vestingCliffDate)
       setVestingEndTimestampDate(vestingEndDate)
-
     };
+
+    function loginMultisig() {
+      window.multisigContract = new Contract(window.walletConnection.account(), nearConfig.multisigAccount, {
+        viewMethods: [],
+        changeMethods: ['add_request'],
+      })
+
+      window.walletConnection.requestSignIn(nearConfig.multisigAccount)
+    }
 
     return (
       <div className={classes.root}>
@@ -1278,6 +1334,7 @@ const Lockups = () => {
                       </Grid>
                       <Grid item xs={12} md={6}>
                         <FormControlLabel
+                          disabled={!!window.walletConnection.isSignedIn()}
                           control={<Switch checked={checkedUseMultisig} onChange={handleShowUseMultisig}/>}
                           label="Use Multisig"
                         />
@@ -1292,6 +1349,30 @@ const Lockups = () => {
                       <Grid container justify="flex-end" style={{marginRight: 6}}>
                         {checkedUseMultisig ?
                           <>
+
+                            {!window.walletConnection.isSignedIn() ?
+                              null
+                              :
+                              <>
+                                <Typography
+                                  align="right"
+                                  variant="h6"
+                                  style={{marginRight: 10}}
+                                >
+                                  {window.walletConnection.getAccountId()}
+                                </Typography>
+                                <Button
+                                  style={{marginRight: 10}}
+                                  variant="contained"
+                                  color="primary"
+                                  type="submit"
+                                  onClick={() => {
+                                    setSignMultisig(true)
+                                  }}
+                                >ADD MULTISIG REQUEST</Button>
+                              </>
+                            }
+
                             <Button
                               style={{marginRight: 10}}
                               variant="contained"
@@ -1306,7 +1387,8 @@ const Lockups = () => {
                         {!checkedUseMultisig ?
                           <Button
                             variant="contained"
-                            color="primary" type="submit"
+                            color="primary"
+                            type="submit"
                             endIcon={<Icon>send</Icon>}
                             disabled={!window.walletConnection.isSignedIn()}
                             onClick={() => {
@@ -1328,6 +1410,7 @@ const Lockups = () => {
                             <Grid container spacing={1}>
                               <Grid item xs={12}>
                                 <TextValidator
+                                  disabled
                                   className={classes.card}
                                   id="ledgerAccount"
                                   label="Enter funding account"
