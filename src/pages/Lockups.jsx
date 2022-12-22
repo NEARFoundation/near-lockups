@@ -620,6 +620,10 @@ const Lockups = () => {
       setDisableAddFundingAccount(false)
     };
 
+    const handleAllowStaking = () => {
+      setState((prevState) => ({...prevState, allowStaking: !prevState.allowStaking}))
+    };
+
 
     const [state, setState] = useState({
       ownerAccountId: '',
@@ -627,6 +631,7 @@ const Lockups = () => {
       amount: '',
       lockupDuration: "0",
       releaseDuration: null,
+      allowStaking: true,
     });
 
 
@@ -683,6 +688,9 @@ const Lockups = () => {
       const amount = nearApi.utils.format.parseNearAmount(state.amount);
       const releaseDuration = state.releaseDuration !== null ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
       const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
+      // Defaults to the staking pool allow list account ID of the lockup factory if staking is allowed. 
+      // `system` is an account that can't be created, so staking from the lockup will always fail if staking is not allowed.
+      const allowListStakingPoolAccountId = state.allowStaking ? null : {whitelist_account_id: "system"};
 
       if (ledgerSign) {
         const client = await createLedgerU2FClient();
@@ -698,6 +706,7 @@ const Lockups = () => {
               end_timestamp: vestingEndTimestampDate ? dateToNs(vestingEndTimestampDate) : null,
             }
           },
+          ...allowListStakingPoolAccountId
         };
 
         const publicKey = nearApi.utils.PublicKey.fromString(ledgerKey);
@@ -808,6 +817,7 @@ const Lockups = () => {
                   end_timestamp: vestingEndTimestampDate ? dateToNs(vestingEndTimestampDate) : null,
                 }
               },
+              ...allowListStakingPoolAccountId
             },
             new Decimal(lockupGas).toString(), amount,
           )
@@ -873,7 +883,9 @@ const Lockups = () => {
       const amount = nearApi.utils.format.parseNearAmount(state.amount);
       const releaseDuration = state.releaseDuration ? new Decimal(state.releaseDuration).mul('2.628e+15').toFixed().toString() : null;
       const lockupTimestamp = lockupStartDate ? dateToNs(lockupStartDate) : null;
-
+      // Defaults to the staking pool allow list account ID of the lockup factory if staking is allowed. 
+      // `system` is an account that can't be created, so staking from the lockup will always fail if staking is not allowed.
+      const allowListStakingPoolAccountId = state.allowStaking ? null : {whitelist_account_id: "system"};
 
       return {
         args:
@@ -888,7 +900,8 @@ const Lockups = () => {
                 cliff_timestamp: vestingCliffTimestampDate ? dateToNs(vestingCliffTimestampDate) : null,
                 end_timestamp: vestingEndTimestampDate ? dateToNs(vestingEndTimestampDate) : null,
               }
-            }
+            },
+            ...allowListStakingPoolAccountId
           },
         gas: new Decimal(lockupGas).toString(),
         deposit: amount
@@ -1269,6 +1282,12 @@ const Lockups = () => {
                       : null}
 
                     <Grid container justify="flex-start" spacing={1} style={{marginTop: 20, marginLeft: 6}}>
+                      <Grid item xs={12} md={6}>
+                        <FormControlLabel
+                          control={<Switch checked={state.allowStaking} onChange={handleAllowStaking}/>}
+                          label="Allow Staking"
+                        />
+                      </Grid>
                       <Grid item xs={12} md={6}>
                         <FormControlLabel
                           disabled={!accountValidator || !amountValidator || !lockupValidator}
